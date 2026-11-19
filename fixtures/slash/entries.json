@@ -1,0 +1,825 @@
+[
+  {
+    "id": "ae_0001",
+    "status": "synced",
+    "amountCents": -700,
+    "memo": null,
+    "transactionId": "tx_0001",
+    "createdAt": "2026-10-01T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0002",
+    "status": "synced",
+    "amountCents": -813,
+    "memo": null,
+    "transactionId": "tx_0002",
+    "createdAt": "2026-10-02T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0003",
+    "status": "synced",
+    "amountCents": -926,
+    "memo": null,
+    "transactionId": "tx_0003",
+    "createdAt": "2026-10-03T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0004",
+    "status": "synced",
+    "amountCents": -1039,
+    "memo": null,
+    "transactionId": "tx_0004",
+    "createdAt": "2026-10-04T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0005",
+    "status": "synced",
+    "amountCents": -1152,
+    "memo": null,
+    "transactionId": "tx_0005",
+    "createdAt": "2026-10-05T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0006",
+    "status": "synced",
+    "amountCents": -1265,
+    "memo": null,
+    "transactionId": "tx_0006",
+    "createdAt": "2026-10-06T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0007",
+    "status": "synced",
+    "amountCents": -1378,
+    "memo": null,
+    "transactionId": "tx_0007",
+    "createdAt": "2026-10-07T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0008",
+    "status": "synced",
+    "amountCents": -1491,
+    "memo": null,
+    "transactionId": "tx_0008",
+    "createdAt": "2026-10-08T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0009",
+    "status": "synced",
+    "amountCents": -1604,
+    "memo": null,
+    "transactionId": "tx_0009",
+    "createdAt": "2026-10-09T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0010",
+    "status": "synced",
+    "amountCents": -1717,
+    "memo": null,
+    "transactionId": "tx_0010",
+    "createdAt": "2026-10-10T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0011",
+    "status": "synced",
+    "amountCents": -1830,
+    "memo": null,
+    "transactionId": "tx_0011",
+    "createdAt": "2026-10-11T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0012",
+    "status": "synced",
+    "amountCents": -1943,
+    "memo": null,
+    "transactionId": "tx_0012",
+    "createdAt": "2026-10-12T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0013",
+    "status": "synced",
+    "amountCents": -2056,
+    "memo": null,
+    "transactionId": "tx_0013",
+    "createdAt": "2026-10-13T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0014",
+    "status": "synced",
+    "amountCents": -2169,
+    "memo": null,
+    "transactionId": "tx_0014",
+    "createdAt": "2026-10-14T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_shipping"
+    }
+  },
+  {
+    "id": "ae_0015",
+    "status": "synced",
+    "amountCents": -8000,
+    "memo": null,
+    "transactionId": "tx_0015",
+    "createdAt": "2026-10-02T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0016",
+    "status": "synced",
+    "amountCents": -10500,
+    "memo": null,
+    "transactionId": "tx_0016",
+    "createdAt": "2026-10-06T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0017",
+    "status": "synced",
+    "amountCents": -13000,
+    "memo": null,
+    "transactionId": "tx_0017",
+    "createdAt": "2026-10-10T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0018",
+    "status": "synced",
+    "amountCents": -15500,
+    "memo": null,
+    "transactionId": "tx_0018",
+    "createdAt": "2026-10-14T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0019",
+    "status": "synced",
+    "amountCents": -18000,
+    "memo": null,
+    "transactionId": "tx_0019",
+    "createdAt": "2026-10-18T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0020",
+    "status": "synced",
+    "amountCents": -20500,
+    "memo": null,
+    "transactionId": "tx_0020",
+    "createdAt": "2026-10-22T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0021",
+    "status": "synced",
+    "amountCents": -1500,
+    "memo": null,
+    "transactionId": "tx_0021",
+    "createdAt": "2026-10-03T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_supplies"
+    }
+  },
+  {
+    "id": "ae_0022",
+    "status": "synced",
+    "amountCents": -2200,
+    "memo": null,
+    "transactionId": "tx_0022",
+    "createdAt": "2026-10-09T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_supplies"
+    }
+  },
+  {
+    "id": "ae_0023",
+    "status": "synced",
+    "amountCents": -2900,
+    "memo": null,
+    "transactionId": "tx_0023",
+    "createdAt": "2026-10-15T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_supplies"
+    }
+  },
+  {
+    "id": "ae_0024",
+    "status": "synced",
+    "amountCents": -3600,
+    "memo": null,
+    "transactionId": "tx_0024",
+    "createdAt": "2026-10-21T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_supplies"
+    }
+  },
+  {
+    "id": "ae_0025",
+    "status": "synced",
+    "amountCents": -1499,
+    "memo": null,
+    "transactionId": "tx_0025",
+    "createdAt": "2026-10-05T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0026",
+    "status": "synced",
+    "amountCents": -1499,
+    "memo": null,
+    "transactionId": "tx_0026",
+    "createdAt": "2026-10-14T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0027",
+    "status": "synced",
+    "amountCents": -1499,
+    "memo": null,
+    "transactionId": "tx_0027",
+    "createdAt": "2026-10-23T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0028",
+    "status": "synced",
+    "amountCents": -3900,
+    "memo": null,
+    "transactionId": "tx_0028",
+    "createdAt": "2026-10-04T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0029",
+    "status": "synced",
+    "amountCents": -3900,
+    "memo": null,
+    "transactionId": "tx_0029",
+    "createdAt": "2026-10-11T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0030",
+    "status": "synced",
+    "amountCents": -3900,
+    "memo": null,
+    "transactionId": "tx_0030",
+    "createdAt": "2026-10-18T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0031",
+    "status": "synced",
+    "amountCents": -3900,
+    "memo": null,
+    "transactionId": "tx_0031",
+    "createdAt": "2026-10-25T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0032",
+    "status": "synced",
+    "amountCents": -4000,
+    "memo": null,
+    "transactionId": "tx_0032",
+    "createdAt": "2026-10-06T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_ads"
+    }
+  },
+  {
+    "id": "ae_0033",
+    "status": "synced",
+    "amountCents": -5000,
+    "memo": null,
+    "transactionId": "tx_0033",
+    "createdAt": "2026-10-14T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_ads"
+    }
+  },
+  {
+    "id": "ae_0034",
+    "status": "synced",
+    "amountCents": -6000,
+    "memo": null,
+    "transactionId": "tx_0034",
+    "createdAt": "2026-10-22T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_ads"
+    }
+  },
+  {
+    "id": "ae_0035",
+    "status": "synced",
+    "amountCents": -90000,
+    "memo": null,
+    "transactionId": "tx_0035",
+    "createdAt": "2026-10-07T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0036",
+    "status": "synced",
+    "amountCents": -105000,
+    "memo": null,
+    "transactionId": "tx_0036",
+    "createdAt": "2026-10-13T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0037",
+    "status": "synced",
+    "amountCents": -120000,
+    "memo": null,
+    "transactionId": "tx_0037",
+    "createdAt": "2026-10-19T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0038",
+    "status": "synced",
+    "amountCents": -135000,
+    "memo": null,
+    "transactionId": "tx_0038",
+    "createdAt": "2026-10-25T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_inventory"
+    }
+  },
+  {
+    "id": "ae_0039",
+    "status": "synced",
+    "amountCents": -1400,
+    "memo": null,
+    "transactionId": "tx_0039",
+    "createdAt": "2026-10-10T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0040",
+    "status": "synced",
+    "amountCents": -1400,
+    "memo": null,
+    "transactionId": "tx_0040",
+    "createdAt": "2026-10-24T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0041",
+    "status": "synced",
+    "amountCents": -5999,
+    "memo": null,
+    "transactionId": "tx_0041",
+    "createdAt": "2026-10-11T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0042",
+    "status": "synced",
+    "amountCents": -5999,
+    "memo": null,
+    "transactionId": "tx_0042",
+    "createdAt": "2026-10-25T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_software"
+    }
+  },
+  {
+    "id": "ae_0043",
+    "status": "synced",
+    "amountCents": -2500,
+    "memo": null,
+    "transactionId": "tx_0043",
+    "createdAt": "2026-10-12T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_bank_fees"
+    }
+  },
+  {
+    "id": "ae_0044",
+    "status": "synced",
+    "amountCents": -2500,
+    "memo": null,
+    "transactionId": "tx_0044",
+    "createdAt": "2026-10-22T14:00:00.000Z",
+    "dimensions": {
+      "account": "dv_bank_fees"
+    }
+  },
+  {
+    "id": "ae_0045",
+    "status": "synced",
+    "amountCents": 155000,
+    "memo": null,
+    "transactionId": "tx_0045",
+    "createdAt": "2026-10-04T14:00:00.000Z",
+    "lineItems": [
+      {
+        "amountCents": 180000,
+        "description": "Gross sales",
+        "dimensions": {
+          "account": "dv_sales"
+        }
+      },
+      {
+        "amountCents": -19800,
+        "description": "Whatnot fees",
+        "dimensions": {
+          "account": "dv_platform_fees"
+        }
+      },
+      {
+        "amountCents": -5200,
+        "description": "Buyer shipping labels",
+        "dimensions": {
+          "account": "dv_shipping"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ae_0046",
+    "status": "synced",
+    "amountCents": 131625,
+    "memo": null,
+    "transactionId": "tx_0046",
+    "createdAt": "2026-10-10T14:00:00.000Z",
+    "lineItems": [
+      {
+        "amountCents": 152500,
+        "description": "Gross sales",
+        "dimensions": {
+          "account": "dv_sales"
+        }
+      },
+      {
+        "amountCents": -16775,
+        "description": "Whatnot fees",
+        "dimensions": {
+          "account": "dv_platform_fees"
+        }
+      },
+      {
+        "amountCents": -4100,
+        "description": "Buyer shipping labels",
+        "dimensions": {
+          "account": "dv_shipping"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ae_0047",
+    "status": "synced",
+    "amountCents": 180600,
+    "memo": null,
+    "transactionId": "tx_0047",
+    "createdAt": "2026-10-16T14:00:00.000Z",
+    "lineItems": [
+      {
+        "amountCents": 210000,
+        "description": "Gross sales",
+        "dimensions": {
+          "account": "dv_sales"
+        }
+      },
+      {
+        "amountCents": -23100,
+        "description": "Whatnot fees",
+        "dimensions": {
+          "account": "dv_platform_fees"
+        }
+      },
+      {
+        "amountCents": -6300,
+        "description": "Buyer shipping labels",
+        "dimensions": {
+          "account": "dv_shipping"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ae_0048",
+    "status": "synced",
+    "amountCents": 85210,
+    "memo": null,
+    "transactionId": "tx_0048",
+    "createdAt": "2026-10-22T14:00:00.000Z",
+    "lineItems": [
+      {
+        "amountCents": 99000,
+        "description": "Gross sales",
+        "dimensions": {
+          "account": "dv_sales"
+        }
+      },
+      {
+        "amountCents": -10890,
+        "description": "Whatnot fees",
+        "dimensions": {
+          "account": "dv_platform_fees"
+        }
+      },
+      {
+        "amountCents": -2900,
+        "description": "Buyer shipping labels",
+        "dimensions": {
+          "account": "dv_shipping"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ae_0049",
+    "status": "synced",
+    "amountCents": 151395,
+    "memo": null,
+    "transactionId": "tx_0049",
+    "createdAt": "2026-10-28T14:00:00.000Z",
+    "lineItems": [
+      {
+        "amountCents": 175500,
+        "description": "Gross sales",
+        "dimensions": {
+          "account": "dv_sales"
+        }
+      },
+      {
+        "amountCents": -19305,
+        "description": "Whatnot fees",
+        "dimensions": {
+          "account": "dv_platform_fees"
+        }
+      },
+      {
+        "amountCents": -4800,
+        "description": "Buyer shipping labels",
+        "dimensions": {
+          "account": "dv_shipping"
+        }
+      }
+    ]
+  },
+  {
+    "id": "ae_0050",
+    "status": "in_review",
+    "amountCents": -1840,
+    "memo": null,
+    "transactionId": "tx_0050",
+    "createdAt": "2026-11-17T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0051",
+    "status": "in_review",
+    "amountCents": -21237,
+    "memo": null,
+    "transactionId": "tx_0051",
+    "createdAt": "2026-11-17T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0052",
+    "status": "in_review",
+    "amountCents": 184210,
+    "memo": null,
+    "transactionId": "tx_0052",
+    "createdAt": "2026-11-16T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0053",
+    "status": "in_review",
+    "amountCents": -4310,
+    "memo": null,
+    "transactionId": "tx_0053",
+    "createdAt": "2026-11-16T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0054",
+    "status": "in_review",
+    "amountCents": 50000,
+    "memo": null,
+    "transactionId": "tx_0054",
+    "createdAt": "2026-11-16T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0055",
+    "status": "in_review",
+    "amountCents": -30000,
+    "memo": null,
+    "transactionId": "tx_0055",
+    "createdAt": "2026-11-15T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0056",
+    "status": "in_review",
+    "amountCents": -1499,
+    "memo": null,
+    "transactionId": "tx_0056",
+    "createdAt": "2026-11-15T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0057",
+    "status": "in_review",
+    "amountCents": -9675,
+    "memo": null,
+    "transactionId": "tx_0057",
+    "createdAt": "2026-11-14T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0058",
+    "status": "in_review",
+    "amountCents": -785,
+    "memo": null,
+    "transactionId": "tx_0058",
+    "createdAt": "2026-11-14T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0059",
+    "status": "in_review",
+    "amountCents": -5000,
+    "memo": null,
+    "transactionId": "tx_0059",
+    "createdAt": "2026-11-13T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0060",
+    "status": "in_review",
+    "amountCents": -2999,
+    "memo": null,
+    "transactionId": "tx_0060",
+    "createdAt": "2026-11-13T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0061",
+    "status": "in_review",
+    "amountCents": -125000,
+    "memo": null,
+    "transactionId": "tx_0061",
+    "createdAt": "2026-11-12T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0062",
+    "status": "in_review",
+    "amountCents": -2210,
+    "memo": null,
+    "transactionId": "tx_0062",
+    "createdAt": "2026-11-12T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0063",
+    "status": "in_review",
+    "amountCents": -4512,
+    "memo": null,
+    "transactionId": "tx_0063",
+    "createdAt": "2026-11-11T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0064",
+    "status": "in_review",
+    "amountCents": -2500,
+    "memo": null,
+    "transactionId": "tx_0064",
+    "createdAt": "2026-11-11T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0065",
+    "status": "in_review",
+    "amountCents": -1400,
+    "memo": null,
+    "transactionId": "tx_0065",
+    "createdAt": "2026-11-10T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0066",
+    "status": "in_review",
+    "amountCents": -2500,
+    "memo": null,
+    "transactionId": "tx_0066",
+    "createdAt": "2026-11-10T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0067",
+    "status": "in_review",
+    "amountCents": -7500,
+    "memo": null,
+    "transactionId": "tx_0067",
+    "createdAt": "2026-11-09T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0068",
+    "status": "in_review",
+    "amountCents": -3900,
+    "memo": null,
+    "transactionId": "tx_0068",
+    "createdAt": "2026-11-08T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0069",
+    "status": "in_review",
+    "amountCents": -5999,
+    "memo": null,
+    "transactionId": "tx_0069",
+    "createdAt": "2026-11-07T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0070",
+    "status": "in_review",
+    "amountCents": -14320,
+    "memo": null,
+    "transactionId": "tx_0070",
+    "createdAt": "2026-11-06T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0071",
+    "status": "in_review",
+    "amountCents": -18650,
+    "memo": null,
+    "transactionId": "tx_0071",
+    "createdAt": "2026-11-05T14:00:00.000Z"
+  },
+  {
+    "id": "ae_0072",
+    "status": "in_review",
+    "amountCents": -86000,
+    "memo": null,
+    "transactionId": "tx_0072",
+    "createdAt": "2026-11-03T14:00:00.000Z"
+  }
+]

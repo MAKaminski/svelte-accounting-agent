@@ -1,0 +1,27 @@
+{
+  "pirate ship": {
+    "kind": "shipping",
+    "summary": "Online postage label service (USPS/UPS discounted labels).",
+    "confidence": 0.9
+  },
+  "shipstation": {
+    "kind": "software",
+    "summary": "Shipping management software, billed monthly.",
+    "confidence": 0.85
+  },
+  "etsy ads": {
+    "kind": "ads",
+    "summary": "Advertising on the Etsy marketplace.",
+    "confidence": 0.9
+  },
+  "packlane": {
+    "kind": "supplies",
+    "summary": "Custom printed shipping boxes and packaging.",
+    "confidence": 0.85
+  },
+  "__default__": {
+    "kind": "unknown",
+    "summary": "Merchant not recognized.",
+    "confidence": 0.2
+  }
+}

@@ -1,0 +1,994 @@
+[
+  {
+    "id": "tx_0001",
+    "date": "2026-10-01",
+    "description": "USPS PO 1234",
+    "amountCents": -700,
+    "accountingEntryId": "ae_0001",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0002",
+    "date": "2026-10-02",
+    "description": "USPS PO 1234",
+    "amountCents": -813,
+    "accountingEntryId": "ae_0002",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0003",
+    "date": "2026-10-03",
+    "description": "USPS PO 1234",
+    "amountCents": -926,
+    "accountingEntryId": "ae_0003",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0004",
+    "date": "2026-10-04",
+    "description": "USPS PO 1234",
+    "amountCents": -1039,
+    "accountingEntryId": "ae_0004",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0005",
+    "date": "2026-10-05",
+    "description": "USPS PO 1234",
+    "amountCents": -1152,
+    "accountingEntryId": "ae_0005",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0006",
+    "date": "2026-10-06",
+    "description": "USPS PO 1234",
+    "amountCents": -1265,
+    "accountingEntryId": "ae_0006",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0007",
+    "date": "2026-10-07",
+    "description": "USPS PO 1234",
+    "amountCents": -1378,
+    "accountingEntryId": "ae_0007",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0008",
+    "date": "2026-10-08",
+    "description": "USPS PO 1234",
+    "amountCents": -1491,
+    "accountingEntryId": "ae_0008",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0009",
+    "date": "2026-10-09",
+    "description": "USPS PO 1234",
+    "amountCents": -1604,
+    "accountingEntryId": "ae_0009",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0010",
+    "date": "2026-10-10",
+    "description": "USPS PO 1234",
+    "amountCents": -1717,
+    "accountingEntryId": "ae_0010",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0011",
+    "date": "2026-10-11",
+    "description": "USPS PO 1234",
+    "amountCents": -1830,
+    "accountingEntryId": "ae_0011",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0012",
+    "date": "2026-10-12",
+    "description": "USPS PO 1234",
+    "amountCents": -1943,
+    "accountingEntryId": "ae_0012",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0013",
+    "date": "2026-10-13",
+    "description": "USPS PO 1234",
+    "amountCents": -2056,
+    "accountingEntryId": "ae_0013",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0014",
+    "date": "2026-10-14",
+    "description": "USPS PO 1234",
+    "amountCents": -2169,
+    "accountingEntryId": "ae_0014",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0015",
+    "date": "2026-10-02",
+    "description": "AMZN Mktp US",
+    "amountCents": -8000,
+    "accountingEntryId": "ae_0015",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0016",
+    "date": "2026-10-06",
+    "description": "AMZN Mktp US",
+    "amountCents": -10500,
+    "accountingEntryId": "ae_0016",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0017",
+    "date": "2026-10-10",
+    "description": "AMZN Mktp US",
+    "amountCents": -13000,
+    "accountingEntryId": "ae_0017",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0018",
+    "date": "2026-10-14",
+    "description": "AMZN Mktp US",
+    "amountCents": -15500,
+    "accountingEntryId": "ae_0018",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0019",
+    "date": "2026-10-18",
+    "description": "AMZN Mktp US",
+    "amountCents": -18000,
+    "accountingEntryId": "ae_0019",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0020",
+    "date": "2026-10-22",
+    "description": "AMZN Mktp US",
+    "amountCents": -20500,
+    "accountingEntryId": "ae_0020",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0021",
+    "date": "2026-10-03",
+    "description": "AMZN Mktp US",
+    "amountCents": -1500,
+    "accountingEntryId": "ae_0021",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0022",
+    "date": "2026-10-09",
+    "description": "AMZN Mktp US",
+    "amountCents": -2200,
+    "accountingEntryId": "ae_0022",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0023",
+    "date": "2026-10-15",
+    "description": "AMZN Mktp US",
+    "amountCents": -2900,
+    "accountingEntryId": "ae_0023",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0024",
+    "date": "2026-10-21",
+    "description": "AMZN Mktp US",
+    "amountCents": -3600,
+    "accountingEntryId": "ae_0024",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0025",
+    "date": "2026-10-05",
+    "description": "Canva Pro",
+    "amountCents": -1499,
+    "accountingEntryId": "ae_0025",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_canva",
+        "description": "Canva Pro",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0026",
+    "date": "2026-10-14",
+    "description": "Canva Pro",
+    "amountCents": -1499,
+    "accountingEntryId": "ae_0026",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_canva",
+        "description": "Canva Pro",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0027",
+    "date": "2026-10-23",
+    "description": "Canva Pro",
+    "amountCents": -1499,
+    "accountingEntryId": "ae_0027",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_canva",
+        "description": "Canva Pro",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0028",
+    "date": "2026-10-04",
+    "description": "Shopify* Subscription",
+    "amountCents": -3900,
+    "accountingEntryId": "ae_0028",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shopify",
+        "description": "Shopify* Subscription",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0029",
+    "date": "2026-10-11",
+    "description": "Shopify* Subscription",
+    "amountCents": -3900,
+    "accountingEntryId": "ae_0029",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shopify",
+        "description": "Shopify* Subscription",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0030",
+    "date": "2026-10-18",
+    "description": "Shopify* Subscription",
+    "amountCents": -3900,
+    "accountingEntryId": "ae_0030",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shopify",
+        "description": "Shopify* Subscription",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0031",
+    "date": "2026-10-25",
+    "description": "Shopify* Subscription",
+    "amountCents": -3900,
+    "accountingEntryId": "ae_0031",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shopify",
+        "description": "Shopify* Subscription",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0032",
+    "date": "2026-10-06",
+    "description": "FACEBK *ADS",
+    "amountCents": -4000,
+    "accountingEntryId": "ae_0032",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_meta",
+        "description": "FACEBK *ADS",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0033",
+    "date": "2026-10-14",
+    "description": "FACEBK *ADS",
+    "amountCents": -5000,
+    "accountingEntryId": "ae_0033",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_meta",
+        "description": "FACEBK *ADS",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0034",
+    "date": "2026-10-22",
+    "description": "FACEBK *ADS",
+    "amountCents": -6000,
+    "accountingEntryId": "ae_0034",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_meta",
+        "description": "FACEBK *ADS",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0035",
+    "date": "2026-10-07",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -90000,
+    "accountingEntryId": "ae_0035",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  },
+  {
+    "id": "tx_0036",
+    "date": "2026-10-13",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -105000,
+    "accountingEntryId": "ae_0036",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  },
+  {
+    "id": "tx_0037",
+    "date": "2026-10-19",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -120000,
+    "accountingEntryId": "ae_0037",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  },
+  {
+    "id": "tx_0038",
+    "date": "2026-10-25",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -135000,
+    "accountingEntryId": "ae_0038",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  },
+  {
+    "id": "tx_0039",
+    "date": "2026-10-10",
+    "description": "Google Workspace",
+    "amountCents": -1400,
+    "accountingEntryId": "ae_0039",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_gworkspace",
+        "description": "Google Workspace",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0040",
+    "date": "2026-10-24",
+    "description": "Google Workspace",
+    "amountCents": -1400,
+    "accountingEntryId": "ae_0040",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_gworkspace",
+        "description": "Google Workspace",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0041",
+    "date": "2026-10-11",
+    "description": "Adobe Creative Cloud",
+    "amountCents": -5999,
+    "accountingEntryId": "ae_0041",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_adobe",
+        "description": "Adobe Creative Cloud",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0042",
+    "date": "2026-10-25",
+    "description": "Adobe Creative Cloud",
+    "amountCents": -5999,
+    "accountingEntryId": "ae_0042",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_adobe",
+        "description": "Adobe Creative Cloud",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0043",
+    "date": "2026-10-12",
+    "description": "Outgoing wire fee",
+    "amountCents": -2500,
+    "accountingEntryId": "ae_0043"
+  },
+  {
+    "id": "tx_0044",
+    "date": "2026-10-22",
+    "description": "Outgoing wire fee",
+    "amountCents": -2500,
+    "accountingEntryId": "ae_0044"
+  },
+  {
+    "id": "tx_0045",
+    "date": "2026-10-04",
+    "description": "WHATNOT PAYOUT WN-8770",
+    "amountCents": 155000,
+    "accountingEntryId": "ae_0045"
+  },
+  {
+    "id": "tx_0046",
+    "date": "2026-10-10",
+    "description": "WHATNOT PAYOUT WN-8775",
+    "amountCents": 131625,
+    "accountingEntryId": "ae_0046"
+  },
+  {
+    "id": "tx_0047",
+    "date": "2026-10-16",
+    "description": "WHATNOT PAYOUT WN-8780",
+    "amountCents": 180600,
+    "accountingEntryId": "ae_0047"
+  },
+  {
+    "id": "tx_0048",
+    "date": "2026-10-22",
+    "description": "WHATNOT PAYOUT WN-8785",
+    "amountCents": 85210,
+    "accountingEntryId": "ae_0048"
+  },
+  {
+    "id": "tx_0049",
+    "date": "2026-10-28",
+    "description": "WHATNOT PAYOUT WN-8790",
+    "amountCents": 151395,
+    "accountingEntryId": "ae_0049"
+  },
+  {
+    "id": "tx_0050",
+    "date": "2026-11-17",
+    "description": "USPS PO 1234",
+    "amountCents": -1840,
+    "accountingEntryId": "ae_0050",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0051",
+    "date": "2026-11-17",
+    "description": "AMZN Mktp US",
+    "amountCents": -21237,
+    "accountingEntryId": "ae_0051",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0052",
+    "date": "2026-11-16",
+    "description": "WHATNOT PAYOUT WN-8812",
+    "amountCents": 184210,
+    "accountingEntryId": "ae_0052"
+  },
+  {
+    "id": "tx_0053",
+    "date": "2026-11-16",
+    "description": "Pirate Ship",
+    "amountCents": -4310,
+    "accountingEntryId": "ae_0053",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_pirateship",
+        "description": "Pirate Ship",
+        "categoryCode": "4215",
+        "categoryId": "cat_courier"
+      }
+    }
+  },
+  {
+    "id": "tx_0054",
+    "date": "2026-11-16",
+    "description": "Book transfer from Slash Checking 4421",
+    "amountCents": 50000,
+    "accountingEntryId": "ae_0054"
+  },
+  {
+    "id": "tx_0055",
+    "date": "2026-11-15",
+    "description": "Zelle to J Smith",
+    "amountCents": -30000,
+    "accountingEntryId": "ae_0055"
+  },
+  {
+    "id": "tx_0056",
+    "date": "2026-11-15",
+    "description": "Canva Pro",
+    "amountCents": -1499,
+    "accountingEntryId": "ae_0056",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_canva",
+        "description": "Canva Pro",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0057",
+    "date": "2026-11-14",
+    "description": "ULINE",
+    "amountCents": -9675,
+    "accountingEntryId": "ae_0057",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_uline",
+        "description": "ULINE",
+        "categoryCode": "5111",
+        "categoryId": "cat_office"
+      }
+    }
+  },
+  {
+    "id": "tx_0058",
+    "date": "2026-11-14",
+    "description": "USPS PO 1234",
+    "amountCents": -785,
+    "accountingEntryId": "ae_0058",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0059",
+    "date": "2026-11-13",
+    "description": "FACEBK *ADS",
+    "amountCents": -5000,
+    "accountingEntryId": "ae_0059",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_meta",
+        "description": "FACEBK *ADS",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0060",
+    "date": "2026-11-13",
+    "description": "ShipStation",
+    "amountCents": -2999,
+    "accountingEntryId": "ae_0060",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shipstation",
+        "description": "ShipStation",
+        "categoryCode": "4215",
+        "categoryId": "cat_courier"
+      }
+    }
+  },
+  {
+    "id": "tx_0061",
+    "date": "2026-11-12",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -125000,
+    "accountingEntryId": "ae_0061",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  },
+  {
+    "id": "tx_0062",
+    "date": "2026-11-12",
+    "description": "USPS PO 1234",
+    "amountCents": -2210,
+    "accountingEntryId": "ae_0062",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_usps",
+        "description": "USPS PO 1234",
+        "categoryCode": "9402",
+        "categoryId": "cat_postal"
+      }
+    }
+  },
+  {
+    "id": "tx_0063",
+    "date": "2026-11-11",
+    "description": "AMZN Mktp US",
+    "amountCents": -4512,
+    "accountingEntryId": "ae_0063",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_amzn",
+        "description": "AMZN Mktp US",
+        "categoryCode": "5942",
+        "categoryId": "cat_retail"
+      }
+    }
+  },
+  {
+    "id": "tx_0064",
+    "date": "2026-11-11",
+    "description": "Etsy Ads",
+    "amountCents": -2500,
+    "accountingEntryId": "ae_0064",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_etsyads",
+        "description": "Etsy Ads",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0065",
+    "date": "2026-11-10",
+    "description": "Google Workspace",
+    "amountCents": -1400,
+    "accountingEntryId": "ae_0065",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_gworkspace",
+        "description": "Google Workspace",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0066",
+    "date": "2026-11-10",
+    "description": "Outgoing wire fee",
+    "amountCents": -2500,
+    "accountingEntryId": "ae_0066"
+  },
+  {
+    "id": "tx_0067",
+    "date": "2026-11-09",
+    "description": "FACEBK *ADS",
+    "amountCents": -7500,
+    "accountingEntryId": "ae_0067",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_meta",
+        "description": "FACEBK *ADS",
+        "categoryCode": "7311",
+        "categoryId": "cat_advertising"
+      }
+    }
+  },
+  {
+    "id": "tx_0068",
+    "date": "2026-11-08",
+    "description": "Shopify* Subscription",
+    "amountCents": -3900,
+    "accountingEntryId": "ae_0068",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_shopify",
+        "description": "Shopify* Subscription",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0069",
+    "date": "2026-11-07",
+    "description": "Adobe Creative Cloud",
+    "amountCents": -5999,
+    "accountingEntryId": "ae_0069",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_adobe",
+        "description": "Adobe Creative Cloud",
+        "categoryCode": "5734",
+        "categoryId": "cat_software"
+      }
+    }
+  },
+  {
+    "id": "tx_0070",
+    "date": "2026-11-06",
+    "description": "ULINE",
+    "amountCents": -14320,
+    "accountingEntryId": "ae_0070",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_uline",
+        "description": "ULINE",
+        "categoryCode": "5111",
+        "categoryId": "cat_office"
+      }
+    }
+  },
+  {
+    "id": "tx_0071",
+    "date": "2026-11-05",
+    "description": "Packlane",
+    "amountCents": -18650,
+    "accountingEntryId": "ae_0071",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_packlane",
+        "description": "Packlane",
+        "categoryCode": "5111",
+        "categoryId": "cat_office"
+      }
+    }
+  },
+  {
+    "id": "tx_0072",
+    "date": "2026-11-03",
+    "description": "Kicks Wholesale LLC",
+    "amountCents": -86000,
+    "accountingEntryId": "ae_0072",
+    "cardDetails": {
+      "merchant": {
+        "id": "mer_kicks",
+        "description": "Kicks Wholesale LLC",
+        "categoryCode": "5139",
+        "categoryId": "cat_wholesale"
+      }
+    }
+  }
+]

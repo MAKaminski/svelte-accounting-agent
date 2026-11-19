@@ -1,0 +1,57 @@
+[
+  {
+    "id": "dv_inventory",
+    "name": "Inventory",
+    "enabled": true
+  },
+  {
+    "id": "dv_cogs",
+    "name": "Cost of Goods Sold",
+    "enabled": true
+  },
+  {
+    "id": "dv_sales",
+    "name": "Sales",
+    "enabled": true
+  },
+  {
+    "id": "dv_platform_fees",
+    "name": "Platform Fees",
+    "enabled": true
+  },
+  {
+    "id": "dv_shipping",
+    "name": "Shipping & Postage",
+    "enabled": true
+  },
+  {
+    "id": "dv_supplies",
+    "name": "Supplies",
+    "enabled": true
+  },
+  {
+    "id": "dv_ads",
+    "name": "Advertising & Marketing",
+    "enabled": true
+  },
+  {
+    "id": "dv_software",
+    "name": "Software & Subscriptions",
+    "enabled": true
+  },
+  {
+    "id": "dv_owner_draw",
+    "name": "Owner's Draw",
+    "enabled": true
+  },
+  {
+    "id": "dv_bank_fees",
+    "name": "Bank Fees",
+    "enabled": true
+  },
+  {
+    "id": "dv_misc_old",
+    "name": "Miscellaneous (old)",
+    "enabled": false
+  }
+]

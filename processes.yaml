@@ -1,0 +1,230 @@
+# Process registry — ARCHITECTURE.md process directory, interaction directory and traces are generated from this.
+# ID grammar: <LAYER>.<noun>.<verb>, layers FE BE MW AI IN. Step kinds: rule | judgment | human.
+# Budgets match the operating envelope in ARCHITECTURE.md.
+processes:
+  MW.coa.pull:
+    trigger: "Daily scheduler, `books coa pull`, first pull"
+    input: "Slash account dimension values (SlashDimensionValue[])"
+    steps: [{ kind: rule, does: "upsert account values with enabled flag" }]
+    output: "dimension_values rows → CoaPull"
+    writes: [dimension_values]
+    fails: "2: Slash error (key missing, no account dimension, 5xx after retries)"
+    accept: "tests/m1-pull.test.ts — 11 accounts, disabled flag kept"
+    budget: { p95_ms: 2000, usd: 0 }
+  MW.entries.pull:
+    trigger: "Hourly (PULL_INTERVAL_MIN), `books entries pull`, Pull button"
+    input: "{ since?: date, dryRun?: bool } + Slash entries (in_review, ready_to_sync, synced) + transactions"
+    steps:
+      - { kind: rule, does: "list entries by status, fetch their transactions" }
+      - { kind: rule, does: "upsert; changed raw (e.g. mapping recode) → back to fetched; ready→synced" }
+      - { kind: rule, does: "queue research → recommend for new/changed entries" }
+    output: "PullResult; accounting_entries fetched, slash_transactions"
+    writes: [accounting_entries, slash_transactions]
+    fails: "2: Slash 429/5xx after 5 tries with jitter; run marked failed"
+    accept: "tests/m1-pull.test.ts — 23 in → 23 rows, rerun idempotent"
+    budget: { p95_ms: 10000, usd: 0 }
+  MW.entry.research:
+    trigger: "After pull, after an owner answer, payout import"
+    input: "accounting entry + transaction; payout_rows; QuickBooks vendors/purchases"
+    steps:
+      - { kind: rule, does: "Slash history by merchant id (or normalized description)" }
+      - { kind: rule, does: "QuickBooks purchases by vendor name, trigram ≥ 0.6" }
+      - { kind: rule, does: "MCC table lookup" }
+      - { kind: rule, does: "payout match: amount ± $0.01, date ± 3 days" }
+      - { kind: rule, does: "no history + card merchant → AI.merchant.identify" }
+    output: "evidence rows; state researched"
+    writes: [evidence, accounting_entries]
+    fails: "Partial: missing source noted in state_reason; continues"
+    accept: "tests/m2-recommend.test.ts — USPS evidence kinds, QuickBooks-down partial"
+    budget: { p95_ms: 1500, usd: 0 }
+  AI.merchant.identify:
+    trigger: "Research found no Slash or QuickBooks history"
+    input: "{ merchantName, mcc, description }"
+    steps:
+      - { kind: rule, does: "build prompt identify.v1" }
+      - { kind: judgment, does: "classify merchant kind", tier: "Ollama 8B if OLLAMA_URL else Haiku 5.5 low", evals: [ec_pirateship_new] }
+      - { kind: rule, does: "Zod; failure → unknown" }
+    output: "evidence(kind=merchant_profile)"
+    writes: [evidence]
+    fails: "Schema fail or model down → kind unknown, confidence 0"
+    accept: "Fixture identify table; live: ≥ 8/10 merchant fixtures (TBD — add 10 cases)"
+    budget: { p95_ms: 1500, usd: 0.0003 }
+  AI.entry.recommend:
+    trigger: "After research; `books entry recommend`; Recommend again"
+    input: "RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts"
+    steps:
+      - { kind: rule, does: "exact-input cache: unchanged hash → reuse stored output" }
+      - { kind: rule, does: "Slash mapping precoded → code it (rules:mapping)" }
+      - { kind: rule, does: "own transfer / person payment without owner answer → ask (rules:guard)" }
+      - { kind: judgment, does: "account, lines, memo, confidence, question", tier: "Haiku 5.5 low; Sonnet 5.5 medium when a payout row matched", evals: [ec_usps_history, ec_pirateship_new, ec_amazon_split, ec_whatnot_payout, ec_transfer, ec_zelle] }
+      - { kind: rule, does: "Zod; 1 retry; fallback to Sonnet once; then invalid" }
+      - { kind: rule, does: "MW.entry.validate" }
+    output: "recommendations row (tokens, cost, ttft, e2e); state recommended | invalid"
+    writes: [recommendations, accounting_entries]
+    fails: "Model down after retry + fallback → invalid 'Model unavailable, retry'"
+    accept: "6/6 seed eval cases; ≥ 95% shadow precision on first 100 decisions"
+    budget: { p95_ms: 4000, usd: 0.0005 }
+  MW.entry.validate:
+    trigger: "After every recommendation and every approval"
+    input: "RecOutput + { amountCents, enabled accounts, tx kind, hasOwnerAnswer }"
+    steps: [{ kind: rule, does: "sum = amount, accounts enabled, integer cents, ask has question, never code transfers" }]
+    output: "error list (empty = valid)"
+    writes: []
+    fails: "—"
+    accept: "tests/rules.test.ts"
+    budget: { p95_ms: 5, usd: 0 }
+  FE.entry.approve:
+    trigger: "Button a / Save edits e, `books entry approve <id> --yes`"
+    input: "entry id, optional edited lines + memo, override, later"
+    steps:
+      - { kind: rule, does: "no open question (unless override); state recommended/invalid; validate lines" }
+      - { kind: human, does: "decision recorded with who and when (approved | edited)" }
+      - { kind: rule, does: "later: hold for the undo window (pending_until); else commit now" }
+    output: "Decision; state approved"
+    writes: [decisions, accounting_entries]
+    fails: "1: open question, bad state, invalid lines"
+    accept: "tests/m3-write.test.ts, tests/e2e/queue.spec.ts"
+    budget: { p95_ms: 800, usd: 0 }
+  FE.entry.undo:
+    trigger: "Undo in toast (u), `books entry undo <id>`"
+    input: "entry id inside its undo window"
+    steps: [{ kind: human, does: "undone decision recorded; state back to recommended" }]
+    output: "Decision; state recommended"
+    writes: [decisions, accounting_entries]
+    fails: "1: window closed (already sending)"
+    accept: "tests/m3-write.test.ts — no Slash write after undo"
+    budget: { p95_ms: 300, usd: 0 }
+  MW.entry.code:
+    trigger: "Commit tick after the undo window, or approve without --later"
+    input: "latest decision lines"
+    steps: [{ kind: rule, does: "PATCH /v2/accounting/entries/{id} (dimensions or lineItems), idempotency key = decision:code" }]
+    output: "state coded"
+    writes: [accounting_entries]
+    fails: "409 sync in progress → retry in 60 s; 400 → recommended with error"
+    accept: "tests/m3-write.test.ts"
+    budget: { p95_ms: 1500, usd: 0 }
+  MW.entry.ready:
+    trigger: "After MW.entry.code"
+    input: "entry id"
+    steps: [{ kind: rule, does: "POST mark-ready, idempotency key = decision:ready" }]
+    output: "state ready (Slash ready_to_sync)"
+    writes: [accounting_entries]
+    fails: "Error surfaced on the row; stays coded"
+    accept: "tests/m3-write.test.ts"
+    budget: { p95_ms: 1500, usd: 0 }
+  FE.entry.ask:
+    trigger: "Ask (q), `books entry ask <id>`"
+    input: "entry id, optional question text (defaults to the recommendation's)"
+    steps: [{ kind: human, does: "question recorded; decision asked" }]
+    output: "Question; state asked"
+    writes: [questions, decisions, accounting_entries]
+    fails: "1: already asked, bad state"
+    accept: "tests/m3-write.test.ts"
+    budget: { p95_ms: 300, usd: 0 }
+  FE.entry.reject:
+    trigger: "Reject (x) + confirm, `books entry reject <id> --yes`"
+    input: "entry id, optional reason"
+    steps: [{ kind: human, does: "rejected decision recorded; coded by hand in Slash" }]
+    output: "Decision; state rejected"
+    writes: [decisions, accounting_entries]
+    fails: "1: no --yes, bad state"
+    accept: "tests/m3-write.test.ts"
+    budget: { p95_ms: 300, usd: 0 }
+  FE.question.answer:
+    trigger: "Questions screen Enter, `books question answer <id> --text`"
+    input: "question id, answer text"
+    steps:
+      - { kind: human, does: "answer recorded as evidence(owner_answer)" }
+      - { kind: rule, does: "queue research → recommend" }
+    output: "Question answered; state researched"
+    writes: [questions, evidence, accounting_entries]
+    fails: "1: empty answer, already answered"
+    accept: "tests/m3-write.test.ts"
+    budget: { p95_ms: 300, usd: 0 }
+  MW.mapping.propose:
+    trigger: "After every approve or undo"
+    input: "latest decision per entry for the merchant"
+    steps: [{ kind: rule, does: "≥ 3 approvals to the same single account, 0 conflicts → proposal; conflict → dismiss" }]
+    output: "mapping_proposals row"
+    writes: [mapping_proposals]
+    fails: "—"
+    accept: "tests/m4-learn.test.ts"
+    budget: { p95_ms: 50, usd: 0 }
+  FE.mapping.apply:
+    trigger: "Rules screen Apply + confirm, `books mapping apply <id> --yes`"
+    input: "proposal id"
+    steps:
+      - { kind: human, does: "confirm" }
+      - { kind: rule, does: "PUT /v2/accounting/mappings (applyToExistingEntries), then pull to refresh recoded entries" }
+    output: "proposal applied"
+    writes: [mapping_proposals]
+    fails: "1: no --yes; 2: Slash error"
+    accept: "tests/m4-learn.test.ts — next USPS entry coded by rules:mapping, no model call"
+    budget: { p95_ms: 1500, usd: 0 }
+  MW.payouts.import:
+    trigger: "Settings upload, `books payouts import <csv>`"
+    input: "CSV payout_id,date,gross,fees,shipping,net"
+    steps:
+      - { kind: rule, does: "parse + validate (gross − fees − shipping = net ± 1¢)" }
+      - { kind: rule, does: "upsert; re-research credits waiting for review" }
+    output: "payout_rows"
+    writes: [payout_rows]
+    fails: "1: bad CSV with line numbers"
+    accept: "tests/rules.test.ts, tests/m2-recommend.test.ts"
+    budget: { p95_ms: 1000, usd: 0 }
+  IN.evals.run:
+    trigger: "`books evals run`, Evals screen (v), CI"
+    input: "eval_cases"
+    steps: [{ kind: rule, does: "replay AI.merchant.identify + AI.entry.recommend per case, score against expected" }]
+    output: "EvalRun; runs rows per case"
+    writes: [runs]
+    fails: "1: any case fails"
+    accept: "6/6 seed"
+    budget: { p95_ms: 30000, usd: 0.005 }
+  FE.eval.add:
+    trigger: "Entry screen 'Add as eval case', `books eval add <entry>`"
+    input: "entry with an approved decision"
+    steps: [{ kind: human, does: "freeze current input + human lines as a golden case" }]
+    output: "eval_cases row"
+    writes: [eval_cases]
+    fails: "1: no approved decision"
+    accept: "manual"
+    budget: { p95_ms: 100, usd: 0 }
+  MW.qbo.connect:
+    trigger: "Settings → Connect QuickBooks"
+    input: "Intuit OAuth 2.0 code + realmId"
+    steps: [{ kind: rule, does: "exchange code, store encrypted tokens (rotating refresh)" }]
+    output: "qbo_tokens row"
+    writes: [qbo_tokens]
+    fails: "400 state mismatch; 502 token exchange"
+    accept: "TBD — sandbox test once QBO keys exist"
+    budget: { p95_ms: 2000, usd: 0 }
+  FE.entries.list: { trigger: "Queue / entry screens, `books entries list`, `books entry show`", input: "state filter", steps: [{ kind: rule, does: "read model" }], output: "Entry[] / EntryDetail", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
+  FE.questions.list: { trigger: "Questions screen, `books questions list`", input: "status", steps: [{ kind: rule, does: "read model" }], output: "Question[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
+  FE.mappings.list: { trigger: "Rules screen, `books mappings list`", input: "status", steps: [{ kind: rule, does: "read model" }], output: "MappingProposal[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
+  FE.evals.show: { trigger: "Evals screen, `books evals show`", input: "—", steps: [{ kind: rule, does: "last run, shadow precision, cost by week" }], output: "EvalSummary", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 300, usd: 0 } }
+  FE.settings.show: { trigger: "Settings screen, `books settings show`", input: "—", steps: [{ kind: rule, does: "read config" }], output: "Settings", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 100, usd: 0 } }
+  FE.coa.list: { trigger: "Entry screen account picker, `books coa list`", input: "—", steps: [{ kind: rule, does: "read dimension_values" }], output: "Account[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 100, usd: 0 } }
+
+interactions:
+  - { from: MW.entries.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
+  - { from: MW.coa.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/dimensions(+values)", timeout: "10 s; 5 tries" }
+  - { from: MW.entry.research, to: "QuickBooks API", via: HTTPS, sync: sync, payload: "query Vendor, Purchase (24 h cache)", timeout: "10 s; 2 tries; continue without QuickBooks evidence" }
+  - { from: AI.merchant.identify, to: "Ollama | Anthropic", via: HTTP, sync: sync, payload: "identify.v1", timeout: "20 s; Ollama → Haiku" }
+  - { from: AI.entry.recommend, to: Anthropic, via: HTTPS, sync: sync, payload: "recommend.v1 (cached prefix)", timeout: "30 s; 1 retry; Sonnet once; else invalid" }
+  - { from: MW.entry.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
+  - { from: MW.entry.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
+  - { from: FE.mapping.apply, to: "Slash API", via: HTTPS, sync: sync, payload: "PUT /v2/accounting/mappings", timeout: "10 s; idempotency key = proposal id" }
+  - { from: MW.qbo.connect, to: "Intuit OAuth", via: HTTPS, sync: sync, payload: "token exchange", timeout: "10 s; no retry" }
+
+traces:
+  - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [MW.coa.pull, MW.entries.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready, MW.mapping.propose], end: ready }
+  - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [MW.entries.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
+  - { name: "Owner question", actor: "Reviewer, owner", trigger: "Low confidence", processes: [AI.entry.recommend, FE.entry.ask, FE.questions.list, FE.question.answer, MW.entry.research, AI.entry.recommend, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
+  - { name: "Undo", actor: Reviewer, trigger: "Approve then Undo within 10 s", processes: [FE.entry.approve, FE.entry.undo, MW.mapping.propose], end: recommended }
+  - { name: "Reject", actor: Reviewer, trigger: "Wrong recommendation", processes: [FE.entry.reject], end: rejected }
+  - { name: "Whatnot payout", actor: "Owner, reviewer", trigger: "Payout lands", processes: [MW.payouts.import, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
+  - { name: "Learn a rule", actor: Reviewer, trigger: "3rd consistent approval", processes: [MW.mapping.propose, FE.mappings.list, FE.mapping.apply, MW.entries.pull, AI.entry.recommend], end: "mapping in Slash; next entry coded by rules:mapping" }
+  - { name: "Degraded: model down", actor: Cron, trigger: "Anthropic 5xx", processes: [AI.entry.recommend], end: "invalid — 'Model unavailable, retry'; manual edit-and-approve still works" }
+  - { name: "Evals", actor: "Reviewer, CI", trigger: "`books evals run`", processes: [IN.evals.run, AI.merchant.identify, AI.entry.recommend, FE.evals.show, FE.eval.add], end: "EvalRun" }
+  - { name: "Setup", actor: Owner, trigger: "First run", processes: [FE.settings.show, MW.qbo.connect, MW.coa.pull, FE.coa.list], end: "connected" }

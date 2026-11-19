@@ -1,0 +1,149 @@
+[
+  {
+    "id": "ec_usps_history",
+    "kind": "golden",
+    "name": "USPS with 14 prior Shipping entries",
+    "input": {
+      "transaction": {
+        "description": "USPS PO 1234",
+        "amountCents": -1840,
+        "mcc": "9402",
+        "merchantName": "USPS PO 1234"
+      },
+      "evidence": [
+        {
+          "id": "ev_1",
+          "kind": "slash_history",
+          "summary": "14 prior entries from USPS PO 1234: 14× Shipping & Postage"
+        },
+        {
+          "id": "ev_2",
+          "kind": "mcc",
+          "summary": "MCC 9402 Postal Services – Government Only"
+        }
+      ]
+    },
+    "expected": {
+      "action": "code",
+      "valueIds": [
+        "dv_shipping"
+      ],
+      "minConfidence": 0.9,
+      "noQuestion": true
+    }
+  },
+  {
+    "id": "ec_pirateship_new",
+    "kind": "golden",
+    "name": "Pirate Ship, no history",
+    "input": {
+      "transaction": {
+        "description": "Pirate Ship",
+        "amountCents": -4310,
+        "mcc": "4215",
+        "merchantName": "Pirate Ship"
+      },
+      "evidence": [
+        {
+          "id": "ev_1",
+          "kind": "mcc",
+          "summary": "MCC 4215 Courier Services"
+        }
+      ]
+    },
+    "expected": {
+      "action": "code",
+      "valueIds": [
+        "dv_shipping"
+      ],
+      "minConfidence": 0.75
+    }
+  },
+  {
+    "id": "ec_amazon_split",
+    "kind": "edge",
+    "name": "Amazon with mixed history",
+    "input": {
+      "transaction": {
+        "description": "AMZN Mktp US",
+        "amountCents": -21237,
+        "mcc": "5942",
+        "merchantName": "AMZN Mktp US"
+      },
+      "evidence": [
+        {
+          "id": "ev_1",
+          "kind": "slash_history",
+          "summary": "10 prior entries from AMZN Mktp US: 6× Inventory, 4× Supplies"
+        }
+      ]
+    },
+    "expected": {
+      "action": "ask",
+      "questionMentions": [
+        "Inventory",
+        "Supplies"
+      ],
+      "questionHasBestGuess": true
+    }
+  },
+  {
+    "id": "ec_whatnot_payout",
+    "kind": "edge",
+    "name": "Whatnot payout split from payout row",
+    "input": {
+      "transaction": {
+        "description": "WHATNOT PAYOUT WN-8812",
+        "amountCents": 184210
+      },
+      "evidence": [
+        {
+          "id": "ev_1",
+          "kind": "payout_row",
+          "summary": "whatnot WN-8812 2026-11-15: gross 2140.00, fees 236.40, shipping 61.50, net 1842.10"
+        }
+      ],
+      "payoutMatched": true
+    },
+    "expected": {
+      "action": "code",
+      "lineCount": 3,
+      "sumCents": 184210
+    }
+  },
+  {
+    "id": "ec_transfer",
+    "kind": "refuse",
+    "name": "Book transfer between own accounts",
+    "input": {
+      "transaction": {
+        "description": "Book transfer from Slash Checking 4421",
+        "amountCents": 50000
+      },
+      "evidence": []
+    },
+    "expected": {
+      "action": "ask",
+      "noLines": true,
+      "forbidValueIds": [
+        "dv_sales"
+      ]
+    }
+  },
+  {
+    "id": "ec_zelle",
+    "kind": "refuse",
+    "name": "Zelle to a person, no memo",
+    "input": {
+      "transaction": {
+        "description": "Zelle to J Smith",
+        "amountCents": -30000
+      },
+      "evidence": []
+    },
+    "expected": {
+      "action": "ask",
+      "noLines": true
+    }
+  }
+]

@@ -1,0 +1,227 @@
+{
+  "usps": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_shipping",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "USPS postage",
+    "confidence": 0.97,
+    "reasoning": "Prior USPS entries were all coded Shipping & Postage; MCC 9402 is postal services.",
+    "question": null
+  },
+  "amzn": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Amazon purchase",
+    "confidence": 0.58,
+    "reasoning": "Past Amazon purchases were coded to both Inventory and Supplies; this amount fits either.",
+    "question": "Was this Amazon order inventory to resell (Inventory) or packing supplies (Supplies)? Best guess: Supplies."
+  },
+  "whatnot payout wn|184210": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_sales",
+        "amountCents": 214000,
+        "description": "Gross sales WN-8812"
+      },
+      {
+        "valueId": "dv_platform_fees",
+        "amountCents": -23640,
+        "description": "Whatnot fees"
+      },
+      {
+        "valueId": "dv_shipping",
+        "amountCents": -6150,
+        "description": "Buyer shipping labels"
+      }
+    ],
+    "memo": "Whatnot payout WN-8812",
+    "confidence": 0.91,
+    "reasoning": "Payout row WN-8812 matches the deposit; gross, fees and shipping come from the row and sum to the deposit.",
+    "question": null
+  },
+  "pirate ship": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_shipping",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Pirate Ship shipping labels",
+    "confidence": 0.82,
+    "reasoning": "Pirate Ship sells discounted postage labels; MCC 4215 is courier services.",
+    "question": null
+  },
+  "canva pro": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_software",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Canva Pro subscription",
+    "confidence": 0.95,
+    "reasoning": "Three prior Canva charges were coded Software & Subscriptions.",
+    "question": null
+  },
+  "uline": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_supplies",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "ULINE packaging supplies",
+    "confidence": 0.88,
+    "reasoning": "QuickBooks shows three Uline purchases coded Supplies; MCC 5111 fits.",
+    "question": null
+  },
+  "facebk ads": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_ads",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Meta ads",
+    "confidence": 0.94,
+    "reasoning": "Prior Meta ad charges were coded Advertising & Marketing.",
+    "question": null
+  },
+  "shipstation": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_software",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "ShipStation subscription",
+    "confidence": 0.74,
+    "reasoning": "ShipStation is shipping software billed monthly; no history yet.",
+    "question": null
+  },
+  "kicks wholesale": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_inventory",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Kicks Wholesale inventory",
+    "confidence": 0.93,
+    "reasoning": "Slash and QuickBooks history code this wholesaler to Inventory.",
+    "question": null
+  },
+  "etsy ads": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_ads",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Etsy Ads",
+    "confidence": 0.86,
+    "reasoning": "Etsy Ads is marketplace advertising; MCC 7311 is advertising services.",
+    "question": null
+  },
+  "google workspace": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_software",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Google Workspace",
+    "confidence": 0.96,
+    "reasoning": "Two prior charges coded Software & Subscriptions.",
+    "question": null
+  },
+  "outgoing wire fee": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_bank_fees",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Wire fee",
+    "confidence": 0.9,
+    "reasoning": "Prior wire fees were coded Bank Fees.",
+    "question": null
+  },
+  "shopify subscription": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_software",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Shopify subscription",
+    "confidence": 0.96,
+    "reasoning": "Four prior Shopify charges were coded Software & Subscriptions.",
+    "question": null
+  },
+  "adobe creative cloud": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_software",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Adobe Creative Cloud",
+    "confidence": 0.95,
+    "reasoning": "Prior Adobe charges were coded Software & Subscriptions.",
+    "question": null
+  },
+  "packlane": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "dv_supplies",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Packlane custom boxes",
+    "confidence": 0.8,
+    "reasoning": "Packlane makes custom shipping boxes; MCC 5111 fits Supplies.",
+    "question": null
+  },
+  "book transfer from slash checking": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Transfer between own accounts",
+    "confidence": 0,
+    "reasoning": "Looks like a transfer between own accounts, which is never coded.",
+    "question": "Is this a transfer between your own accounts? Best guess: yes, so it should not be coded."
+  },
+  "zelle to j smith": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Zelle payment",
+    "confidence": 0,
+    "reasoning": "Zelle to a person with no memo could be personal or a contractor.",
+    "question": "Who is J Smith and what was the $300 for? Best guess: a personal payment (Owner's Draw)."
+  },
+  "__default__": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Unknown transaction",
+    "confidence": 0.2,
+    "reasoning": "No evidence settles the account.",
+    "question": "What was this purchase for? Best guess: unknown."
+  }
+}

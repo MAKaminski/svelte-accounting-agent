@@ -1,0 +1,54 @@
+{
+  "name": "laceluxx-books",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build && pnpm cli:build",
+    "preview": "vite preview",
+    "start": "node build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "books": "tsx src/cli/books.ts",
+    "cli:build": "esbuild src/cli/books.ts --bundle --platform=node --format=esm --outfile=dist/books.mjs",
+    "evals": "tsx scripts/evals.ts",
+    "arch": "tsx scripts/gen-arch.ts",
+    "arch:check": "tsx scripts/gen-arch.ts --check",
+    "diagrams:check": "node scripts/check-diagrams.mjs",
+    "test:e2e": "playwright test --trace off"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^12.2.0",
+    "@playwright/test": "^1.65.1",
+    "@sveltejs/adapter-node": "^5.5.8",
+    "@sveltejs/kit": "^2.70.4",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.6",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
+    "svelte": "^5.58.0",
+    "svelte-check": "^4.7.8",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "yaml": "^2.9.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
+    "better-sqlite3": "^13.2.0",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  }
+}
