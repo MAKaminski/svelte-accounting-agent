@@ -174,3 +174,53 @@ export const SettingsSchema = z.object({
 export const ApiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), source: z.enum(['app', 'slash', 'qbo', 'model']).optional() })
 });
+
+// ---- Control plane ----
+export const ComponentSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['agent', 'rule', 'human', 'tool']),
+  layer: z.enum(['FE', 'MW', 'AI', 'IN', 'BE', 'TOOLS']),
+  label: z.string(),
+  summary: z.string(),
+  toggle: z.boolean(),
+  whenOff: z.string().nullable(),
+  enabled: z.boolean(),
+  status: z.enum(['active', 'idle', 'degraded', 'off']),
+  tier: z.string().nullable(),
+  promptVersion: z.string().nullable(),
+  target: z.string().nullable(),
+  usedBy: z.array(z.string()),
+  writes: z.array(z.string()),
+  evalPassRate: z.number().nullable(),
+  calls7d: z.number(),
+  failures7d: z.number(),
+  p95Ms: z.number().nullable(),
+  costUsd7d: z.number(),
+  cacheReadShare: z.number().nullable(),
+  lastRunAt: z.string().nullable(),
+  updatedBy: z.string().nullable(),
+  updatedAt: z.string().nullable()
+});
+export type Component = z.infer<typeof ComponentSchema>;
+
+export const ComponentDetailSchema = ComponentSchema.extend({
+  card: z.object({ trigger: z.string(), input: z.string(), steps: z.array(z.object({ kind: z.string(), does: z.string(), tier: z.string().optional(), evals: z.array(z.string()).optional() })), output: z.string(), fails: z.string(), accept: z.string(), budget: z.object({ p95_ms: z.number(), usd: z.number() }) }).nullable(),
+  tool: z.object({ port: z.string(), ops: z.array(z.string()) }).nullable(),
+  traces: z.array(z.string()),
+  stateCounts: z.record(z.string(), z.number()),
+  transitions: z.array(z.object({ from: z.string(), to: z.string(), by: z.string(), mine: z.boolean() })),
+  runs: z.array(z.object({ id: z.string(), subjectId: z.string().nullable(), startedAt: z.string(), status: z.string(), error: z.string().nullable(), e2eMs: z.number().nullable() }))
+});
+export type ComponentDetail = z.infer<typeof ComponentDetailSchema>;
+
+export const SystemGraphSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string(), label: z.string(),
+    kind: z.enum(['agent', 'rule', 'human', 'tool', 'table', 'external']),
+    layer: z.enum(['FE', 'MW', 'AI', 'IN', 'BE', 'TOOLS', 'EXT']),
+    status: z.enum(['active', 'idle', 'degraded', 'off']),
+    toggle: z.boolean()
+  })),
+  edges: z.array(z.object({ id: z.string(), source: z.string(), target: z.string(), kind: z.enum(['flow', 'writes', 'uses', 'calls']) }))
+});
+export type SystemGraph = z.infer<typeof SystemGraphSchema>;

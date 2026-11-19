@@ -64,7 +64,7 @@
     else if (ev.key === 'u') { const t = [...ui.toasts].reverse().find((x) => x.undo); if (t) t.undo!().then(() => ui.dismiss(t.id)); }
   }
   const confClass = (c: number) => (c >= 0.9 ? 'hi' : c >= 0.75 ? 'mid' : 'lo');
-  const acct = (e: Entry) => !e.recommendation ? '—' : e.recommendation.action === 'ask' ? 'Question' : e.recommendation.lines.length > 1 ? `Split (${e.recommendation.lines.length} lines)` : e.recommendation.lines[0]?.accountName;
+  const acct = (e: Entry) => !e.recommendation ? '—' : e.recommendation.model.startsWith('off:') ? 'Manual (agent off)' : e.recommendation.action === 'ask' ? 'Question' : e.recommendation.lines.length > 1 ? `Split (${e.recommendation.lines.length} lines)` : e.recommendation.lines[0]?.accountName;
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -120,7 +120,7 @@
           {#if e.state === 'recommended' && e.recommendation?.action === 'code'}
             <button class="btn sm primary" type="button" onclick={(ev) => { ev.stopPropagation(); approveRow(e); }}>Approve <span class="kbd">a</span></button>
           {:else if e.state === 'recommended' || e.state === 'asked'}
-            <a class="btn sm warn" href="/entry/{e.id}">{e.state === 'asked' ? 'Asked' : 'Answer'}</a>
+            <a class="btn sm warn" href="/entry/{e.id}">{e.state === 'asked' ? 'Asked' : e.recommendation?.model.startsWith('off:') ? 'Code' : 'Answer'}</a>
           {:else if e.state === 'invalid'}
             <a class="btn sm" href="/entry/{e.id}">Fix</a>
           {:else}

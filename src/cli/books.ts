@@ -59,7 +59,7 @@ async function main(argv: string[]): Promise<number> {
   if (cmd.writesSlash && !values.yes && !values.dryRun) { err(`error: books ${noun} ${verb} writes to Slash; pass --yes to confirm or --dry-run to preview`); return 1; }
 
   const base = (process.env.BOOKS_URL ?? 'http://localhost:5173').replace(/\/$/, '');
-  const body = Object.fromEntries(cmd.params.filter((p) => p.in === 'body' && values[camel(p.name)] !== undefined).map((p) => [camel(p.name), values[camel(p.name)]]));
+  const body = { ...Object.fromEntries(cmd.params.filter((p) => p.in === 'body' && values[camel(p.name)] !== undefined).map((p) => [camel(p.name), values[camel(p.name)]])), ...(cmd.body ?? {}) };
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (process.env.APP_PASSCODE) headers['x-books-passcode'] = process.env.APP_PASSCODE;
   let res: Response;

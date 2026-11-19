@@ -15,6 +15,9 @@ import { accountNames, latestRec } from './view';
 import { withRun } from './runs';
 import { proposeMappingFor } from './mappings';
 import { questionView } from './questions';
+import { isEnabled } from '../components';
+
+const HELD = 'Held: Slash writes (slash.write) are switched off in /system';
 
 function loadEntry(id: string) {
   const e = getDb().select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, id)).get();
@@ -112,6 +115,12 @@ export async function undo(entryId: string): Promise<Decision> {
 export async function commit(entryId: string): Promise<void> {
   const db = getDb();
   const e = loadEntry(entryId);
+  if (!isEnabled('slash.write')) {
+    if ((e.localState === 'approved' || e.localState === 'coded') && e.stateReason !== HELD) {
+      db.update(schema.accountingEntries).set({ stateReason: HELD, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+    }
+    return;
+  }
   if (e.localState === 'approved') {
     if (e.pendingUntil && Date.parse(e.pendingUntil) > Date.now()) return;
     const d = latestDecision(entryId);
@@ -150,7 +159,7 @@ export async function commit(entryId: string): Promise<void> {
 export async function commitDue(): Promise<number> {
   const db = getDb();
   const due = db.select({ id: schema.accountingEntries.id }).from(schema.accountingEntries)
-    .where(and(eq(schema.accountingEntries.localState, 'approved'), lte(schema.accountingEntries.pendingUntil, nowIso()))).all();
+    .where(and(inArray(schema.accountingEntries.localState, ['approved', 'coded']), lte(schema.accountingEntries.pendingUntil, nowIso()))).all();
   for (const { id } of due) await commit(id);
   return due.length;
 }

@@ -30,6 +30,8 @@ export interface Command {
   screen?: string; // UI route where the action lives
   feedback?: string;
   confirm?: string;
+  /** Constant body fields this command always sends (e.g. enable/disable share one route). */
+  body?: Record<string, unknown>;
 }
 
 const id = (help = 'Entry id (ae_…)'): Param => ({ name: 'id', kind: 'positional', type: 'string', in: 'path', required: true, help });
@@ -152,6 +154,32 @@ export const commands: Command[] = [
     method: 'POST', path: '/api/evals/cases',
     params: [{ name: 'entry', kind: 'positional', type: 'string', in: 'body', required: true, help: 'Entry id with a decision' }],
     returns: z.object({ id: z.string(), kind: z.string(), name: z.string() }), process: 'FE.eval.add', screen: '/entry/[id]', feedback: 'Toast'
+  },
+  {
+    name: 'system.graph', noun: 'system', verb: 'graph', summary: 'Show the component graph: agents, processes, tools, tables, external systems',
+    method: 'GET', path: '/api/system/graph', params: [],
+    returns: T.SystemGraphSchema, process: 'FE.system.graph', screen: '/system'
+  },
+  {
+    name: 'components.list', noun: 'components', verb: 'list', summary: 'List agents, processes and tools with on/off state and 7-day metrics',
+    method: 'GET', path: '/api/system/components',
+    params: [{ name: 'kind', kind: 'flag', type: 'string', in: 'query', help: 'agent | rule | human | tool' }],
+    returns: z.array(T.ComponentSchema), process: 'FE.system.graph', screen: '/system/agents'
+  },
+  {
+    name: 'component.show', noun: 'component', verb: 'show', summary: 'Show one component: card, live state graph, recent runs',
+    method: 'GET', path: '/api/system/components/:id', params: [id('Component id (e.g. AI.entry.recommend, slash.write)')],
+    returns: T.ComponentDetailSchema, process: 'FE.system.graph', screen: '/system/processes/[id]'
+  },
+  {
+    name: 'component.enable', noun: 'component', verb: 'enable', summary: 'Switch a component on',
+    method: 'POST', path: '/api/system/components/:id/state', params: [id('Component id')], body: { enabled: true },
+    returns: T.ComponentSchema, process: 'FE.component.toggle', shortcut: 't', screen: '/system/agents', feedback: 'Switch flips, node recolors', confirm: '—'
+  },
+  {
+    name: 'component.disable', noun: 'component', verb: 'disable', summary: 'Switch a component off (its whenOff behavior applies)',
+    method: 'POST', path: '/api/system/components/:id/state', params: [id('Component id')], body: { enabled: false },
+    returns: T.ComponentSchema, process: 'FE.component.toggle', shortcut: 't', screen: '/system/agents', feedback: 'Switch flips, node recolors', confirm: 'Confirm dialog naming the whenOff behavior'
   },
   {
     name: 'settings.show', noun: 'settings', verb: 'show', summary: 'Show connections and configuration',

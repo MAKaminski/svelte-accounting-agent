@@ -13,6 +13,7 @@ import { validateRecommendation, type RecOutput } from './validate';
 import { enabledAccounts } from './coa';
 import { withRun } from './runs';
 import { recView } from './view';
+import { isEnabled } from '../components';
 
 const OutputSchema = z.object({
   action: z.enum(['code', 'ask']),
@@ -50,7 +51,8 @@ const ZERO: Usage = { fresh: 0, cacheWrite: 0, cacheRead: 0, out: 0 };
 /** Level A cache key: hash(inputs + prompt version + model route + account set). */
 export function inputHashFor(input: RecInput, ctx: RecContext): string {
   const route = ctx.payoutMatched ? config.modelIntegrator : config.modelWorker;
-  return sha256(stableJson(input) + PROMPT_VERSION + route + stableJson(ctx.accounts.map((a) => a.id).sort()) + (ctx.precodedValueId ?? ''));
+  const mode = isEnabled('AI.entry.recommend') ? 'on' : 'off';
+  return sha256(stableJson(input) + PROMPT_VERSION + route + stableJson(ctx.accounts.map((a) => a.id).sort()) + (ctx.precodedValueId ?? '') + mode);
 }
 
 function validationContext(input: RecInput, ctx: RecContext) {
@@ -80,6 +82,13 @@ export async function recommendForInput(input: RecInput, ctx: RecContext): Promi
       reasoning: transfer ? 'Transfers between own accounts are never coded.' : 'Payments to people need the owner to say what they were for.',
       question: transfer ? 'Is this a transfer between your own accounts? Best guess: yes, so it should not be coded.'
         : `Who was this payment to and what was it for? Best guess: a personal payment (Owner's Draw).` }, 'rules:guard');
+  }
+
+  // Control plane: recommend agent switched off → manual mode, no model call.
+  if (!isEnabled('AI.entry.recommend')) {
+    return ruleResult({ action: 'ask', lines: [], memo: (input.transaction.merchantName ?? input.transaction.description).slice(0, 200), confidence: 0,
+      reasoning: 'The recommendation agent (AI.entry.recommend) is switched off in /system; code this entry by hand.',
+      question: 'Recommendation agent is off. Choose the account by hand.' }, 'off:AI.entry.recommend');
   }
 
   // judgment: model call with one retry, then one fallback to the integrator tier.

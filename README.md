@@ -4,7 +4,7 @@
 pnpm i && pnpm db:migrate && pnpm db:seed && pnpm dev
 ```
 
-Open http://localhost:5173 (lands on `/queue`). CLI: `pnpm books --help`.
+Open http://localhost:5173 (lands on `/queue`); `/system` shows every agent, process and tool with on/off switches. CLI: `pnpm books --help`.
 
 An accounting agent for LaceLuxx. It codes Slash bank and card transactions to QuickBooks accounts, explains why, asks the owner when it isn't sure, and learns rules so the same question isn't asked twice. A person approves every coding; Slash's own QuickBooks sync posts it. The app never writes to QuickBooks.
 
@@ -37,7 +37,7 @@ Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and mode
 | Path | Holds |
 |---|---|
 | `src/lib/commands.ts` | The command registry: CLI, palette, shortcuts, routes and docs come from it |
-| `processes.yaml` | Process cards, interactions, use-case traces |
+| `processes.yaml` | Process cards, tools, switches (`toggle`/`whenOff`), interactions, use-case traces — rendered live at `/system` |
 | `src/lib/server/processes/` | One handler per process (pull, research, recommend, decide, mappings, payouts, evals) |
 | `src/lib/server/{slash,qbo}.ts`, `ai/model.ts` | External ports with live + fixture implementations |
 | `src/lib/server/prompts/` | Versioned prompts (`recommend.v1`, `identify.v1`) |

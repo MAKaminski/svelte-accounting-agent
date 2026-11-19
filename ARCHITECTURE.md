@@ -25,6 +25,10 @@ Codes LaceLuxx's Slash transactions to QuickBooks accounts, explains why, asks t
 | `/mappings` | Learned rules to apply in Slash | Nav | `GET /api/mappings` | follows `Main` table |
 | `/evals` | Eval results, shadow precision, cost by week | Nav | `GET /api/evals` | follows `Main` table |
 | `/settings` | Connections, COA pull, payout CSV upload | Nav | `GET /api/settings` | follows `Entry` cards |
+| `/system` | Control-plane graph + selected component | Nav | `GET /api/system/graph`, `GET /api/system/components` | canvas `System` |
+| `/system/agents` | Agents & processes with switches | System tabs | `GET /api/system/components` | follows `Main` table |
+| `/system/tools` | Tools by external system | System tabs | `GET /api/system/components?kind=tool` | follows `Entry` cards |
+| `/system/processes/[id]` | Card, live state graph, runs | Graph node, tables | `GET /api/system/components/:id` | follows `Entry` layout |
 | `/login` | Passcode | Any route when signed out | form action | — |
 
 Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`, `States` artboards). Every screen has empty, loading (skeleton / progress bar), error (source-tagged: Slash, QuickBooks, Model, with Retry), partial (invalid rows red, rest usable) and success states.
@@ -45,6 +49,8 @@ Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`
 | Import a Whatnot payout CSV | `/settings` | — | `POST /api/payouts/import` | Spinner | — |
 | Run the eval cases (exit 1 if any fail) | `/evals` | `v` | `POST /api/evals/run` | Progress bar | — |
 | Turn a decided entry into a golden eval case | `/entry/[id]` | — | `POST /api/evals/cases` | Toast | — |
+| Switch a component on | `/system/agents` | `t` | `POST /api/system/components/:id/state` | Switch flips, node recolors | — |
+| Switch a component off (its whenOff behavior applies) | `/system/agents` | `t` | `POST /api/system/components/:id/state` | Switch flips, node recolors | Confirm dialog naming the whenOff behavior |
 | Command palette | everywhere | `⌘K` | any registry command | opens instantly | — |
 <!-- /gen:actions -->
 
@@ -72,6 +78,11 @@ Queue keyboard: `j`/`k` move, `a` approve, `Enter` open, `p` pull, `u` undo. Ent
 | `books evals run` | `--json` | Run the eval cases (exit 1 if any fail) | 0 · 1 · 2 | `POST /api/evals/run` | `IN.evals.run` |
 | `books evals show` | `--json` | Show the last eval run, shadow precision and cost by week | 0 · 1 · 2 | `GET /api/evals` | `FE.evals.show` |
 | `books eval add` | `<entry>` `--json` | Turn a decided entry into a golden eval case | 0 · 1 · 2 | `POST /api/evals/cases` | `FE.eval.add` |
+| `books system graph` | `--json` | Show the component graph: agents, processes, tools, tables, external systems | 0 · 1 · 2 | `GET /api/system/graph` | `FE.system.graph` |
+| `books components list` | `--kind` `--json` | List agents, processes and tools with on/off state and 7-day metrics | 0 · 1 · 2 | `GET /api/system/components` | `FE.system.graph` |
+| `books component show` | `<id>` `--json` | Show one component: card, live state graph, recent runs | 0 · 1 · 2 | `GET /api/system/components/:id` | `FE.system.graph` |
+| `books component enable` | `<id>` `--json` | Switch a component on | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
+| `books component disable` | `<id>` `--json` | Switch a component off (its whenOff behavior applies) | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
 | `books settings show` | `--json` | Show connections and configuration | 0 · 1 · 2 | `GET /api/settings` | `FE.settings.show` |
 <!-- /gen:cli -->
 
@@ -102,6 +113,12 @@ flowchart LR
   M -->|"Apply r + confirm"| M
   L -->|"nav Evals"| V["/evals"]
   L -->|"nav Settings"| S["/settings"]
+  L -->|"nav System"| SY["/system"]
+  SY -->|"click node"| SY
+  SY -->|"Open card"| SP["/system/processes/[id]"]
+  SY -->|"tab Agents"| SA["/system/agents"]
+  SY -->|"tab Tools"| ST["/system/tools"]
+  SA -->|"switch t"| SA
   X["/login"] -->|"passcode"| L
 ```
 
@@ -189,6 +206,13 @@ erDiagram
     text pending_until
     text raw_json
     text created_at
+    text updated_at
+  }
+  component_states {
+    text component_id PK
+    text enabled
+    text config_json
+    text updated_by
     text updated_at
   }
   decisions {
@@ -458,6 +482,7 @@ State cards (table → writers):
 | Component (table) | Written by |
 |---|---|
 | `accounting_entries` | `MW.entries.pull`, `MW.entry.research`, `AI.entry.recommend`, `FE.entry.approve`, `FE.entry.undo`, `MW.entry.code`, `MW.entry.ready`, `FE.entry.ask`, `FE.entry.reject`, `FE.question.answer` |
+| `component_states` | `FE.component.toggle` |
 | `decisions` | `FE.entry.approve`, `FE.entry.undo`, `FE.entry.ask`, `FE.entry.reject` |
 | `dimension_values` | `MW.coa.pull` |
 | `eval_cases` | `FE.eval.add` |
@@ -504,6 +529,8 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `FE.evals.show` | Evals screen, `books evals show` | — | **rule**: last run, shadow precision, cost by week | EvalSummary | — | manual | 300 ms · $0 |
 | `FE.settings.show` | Settings screen, `books settings show` | — | **rule**: read config | Settings | — | manual | 100 ms · $0 |
 | `FE.coa.list` | Entry screen account picker, `books coa list` | — | **rule**: read dimension_values | Account[] | — | e2e | 100 ms · $0 |
+| `FE.system.graph` | /system screens, `books system graph`, `books components list`, `books component show` | registries (processes.yaml, commands.ts) + component_states + runs (7 days) | **rule**: join registry nodes with on/off state and 7-day metrics; derive edges from traces and tool usage | SystemGraph { nodes[], edges[] } / Component[] / ComponentDetail | — | tests/m6-control.test.ts | 100 ms · $0 |
+| `FE.component.toggle` | /system toggle (t), `books component enable\|disable <id>` | component id (process or tool) + enabled | **rule**: reject components with toggle: false<br>**human**: state recorded with who and when | Component; component_states row | 1: component cannot be switched off / unknown id | tests/m6-control.test.ts, tests/e2e/system.spec.ts | 300 ms · $0 |
 <!-- /gen:processes -->
 
 ### Interaction directory
@@ -535,7 +562,59 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | Degraded: model down | Cron | Anthropic 5xx | `AI.entry.recommend` | invalid — 'Model unavailable, retry'; manual edit-and-approve still works |
 | Evals | Reviewer, CI | `books evals run` | `IN.evals.run` → `AI.merchant.identify` → `AI.entry.recommend` → `FE.evals.show` → `FE.eval.add` | EvalRun |
 | Setup | Owner | First run | `FE.settings.show` → `MW.qbo.connect` → `MW.coa.pull` → `FE.coa.list` | connected |
+| Control plane | Owner | Review or pause a component | `FE.system.graph` → `FE.component.toggle` → `MW.entries.pull` → `AI.entry.recommend` | component off → its whenOff behavior; on → normal |
 <!-- /gen:traces -->
+
+## 4b. Control plane (`/system`)
+
+The registry is the system's ontology. `processes.yaml` declares every process (rule, human step or **agent** = a process with a `judgment` step) and every **tool** (an operation on an external system through a port). `/system` renders it live as a graph with lanes for Front-end, Middleware, AI, Infra, Back-end tables, Tools and External systems. Each node carries its on/off state (`component_states`) and 7-day metrics from `runs` and `recommendations`. A component with `toggle: true` can be switched off by an owner; its `whenOff` behavior applies at once. Required components (`toggle: false`) can't be switched off. `arch:check` fails on a toggle without `whenOff`, or a tool used by an unknown process.
+
+| Screen | Shows |
+|---|---|
+| `/system` | Graph (lazy-loaded `@xyflow/svelte`, deterministic lane layout), filter by kind, side panel with switch + metrics |
+| `/system/agents` | Agents (tier, prompt version, eval pass rate, calls, cost, cache share) and every rule/human process |
+| `/system/tools` | Tools grouped by external system, health, switch |
+| `/system/processes/[id]` | Process card, live entry-state graph (counts per state, this component's transitions highlighted), recent runs |
+
+### Switchable processes
+<!-- gen:toggles -->
+| Process | Switch | When off |
+|---|---|---|
+| `AI.merchant.identify` | yes | Merchant profile is "unknown"; no model call |
+| `AI.entry.recommend` | yes | Manual mode: each entry gets a "code by hand" placeholder; no model calls |
+| `MW.mapping.propose` | yes | No new rule proposals; existing rules stay in Slash |
+<!-- /gen:toggles -->
+
+### Tools
+<!-- gen:tools -->
+| Tool | Target | Port · ops | Used by | Switch | When off |
+|---|---|---|---|---|---|
+| `slash.read` | Slash API | SlashPort: listEntries, listTransactionsForEntries, listAccountValues | `MW.entries.pull`, `MW.coa.pull` | required | — |
+| `slash.write` | Slash API | SlashPort: updateEntry, markReady | `MW.entry.code`, `MW.entry.ready` | yes | Approved entries are held, not sent, until Slash writes resume |
+| `slash.mappings` | Slash API | SlashPort: upsertMapping | `FE.mapping.apply` | yes | Learned rules cannot be applied to Slash |
+| `qbo.read` | QuickBooks API | QboPort: listVendors, purchasesByVendor | `MW.entry.research` | yes | Research skips QuickBooks history |
+| `model.anthropic` | Anthropic | ModelPort: messages.stream | `AI.entry.recommend`, `AI.merchant.identify`, `IN.evals.run` | required | — |
+| `model.ollama` | Ollama | ModelPort: api/chat | `AI.merchant.identify` | yes | Merchant identify uses Haiku instead |
+<!-- /gen:tools -->
+
+### Control-plane sequence
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant O as Owner (/system)
+  participant MW as SvelteKit server (rules)
+  participant DB as SQLite
+  participant H as Haiku 5.5 low
+  O->>MW: FE.system.graph GET /api/system/graph (p95 100ms)
+  MW->>DB: FE.system.graph registry joined with component_states and runs (7d)
+  O->>MW: FE.component.toggle POST /api/system/components/AI.entry.recommend/state off (p95 300ms)
+  MW->>DB: FE.component.toggle component_states row (who, when)
+  MW->>MW: MW.entries.pull next pull
+  MW->>MW: AI.entry.recommend isEnabled false → manual placeholder, no model call
+  O->>MW: FE.component.toggle on
+  MW->>H: AI.entry.recommend model calls resume (cache key includes mode)
+```
 
 ## 5. Operating envelope
 

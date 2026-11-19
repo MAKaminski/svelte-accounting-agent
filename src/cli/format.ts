@@ -81,6 +81,23 @@ export function format(name: string, data: unknown, values: Record<string, unkno
       return `Last eval: ${s.lastRun ? `${s.lastRun.passed}/${s.lastRun.total}` : 'never run'}\nShadow precision: ${pct(s.shadow.precision)} over ${s.shadow.decisions} decisions · auto-approve would have taken ${s.shadow.autoApproveWouldHave} at ${pct(s.shadow.autoApprovePrecision)}`;
     }
     case 'eval.add': { const c = data as { id: string; name: string }; return `Added eval case ${c.id}: ${c.name}`; }
+    case 'system.graph': {
+      const g = data as { nodes: { id: string; kind: string; status: string }[]; edges: unknown[] };
+      const by = (k: string) => g.nodes.filter((n) => n.kind === k).length;
+      const off = g.nodes.filter((n) => n.status === 'off').map((n) => n.id);
+      return `${g.nodes.length} nodes (${by('agent')} agents, ${by('rule') + by('human')} processes, ${by('tool')} tools, ${by('table')} tables, ${by('external')} external) · ${g.edges.length} edges` + (off.length ? `\nOff: ${off.join(', ')}` : '');
+    }
+    case 'components.list': {
+      const cs = data as { id: string; kind: string; status: string; toggle: boolean; calls7d: number; p95Ms: number | null; costUsd7d: number; tier: string | null }[];
+      return table(['ID', 'KIND', 'STATUS', 'SWITCH', 'CALLS 7D', 'P95 MS', 'COST 7D', 'TIER'], cs.map((c) => [c.id, c.kind, c.status, c.toggle ? 'yes' : 'required', String(c.calls7d), c.p95Ms == null ? '' : String(c.p95Ms), c.costUsd7d ? `$${c.costUsd7d.toFixed(4)}` : '', c.tier ?? '']), [4, 5, 6]);
+    }
+    case 'component.show': {
+      const c = data as { id: string; kind: string; status: string; summary: string; whenOff: string | null; traces: string[]; runs: { startedAt: string; status: string; e2eMs: number | null }[] };
+      return [`${c.id} · ${c.kind} · ${c.status}`, c.summary, c.whenOff ? `When off: ${c.whenOff}` : 'Required (cannot be switched off)', `Traces: ${c.traces.join(', ') || '—'}`,
+        'Recent runs:', ...c.runs.slice(0, 5).map((r) => `  ${r.startedAt} ${r.status}${r.e2eMs != null ? ` ${r.e2eMs} ms` : ''}`)].join('\n');
+    }
+    case 'component.enable':
+    case 'component.disable': { const c = data as { id: string; enabled: boolean; whenOff: string | null }; return `${c.id} is ${c.enabled ? 'on' : `off — ${c.whenOff}`}`; }
     default: return JSON.stringify(data, null, 2);
   }
 }

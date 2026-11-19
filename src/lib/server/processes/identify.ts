@@ -5,13 +5,16 @@ import { config } from '../env';
 import { IDENTIFY_JSON_SCHEMA, IDENTIFY_KINDS, IDENTIFY_SYSTEM } from '../prompts/identify.v1';
 import { withRun } from './runs';
 import { costUsd } from '../ai/pricing';
+import { isEnabled } from '../components';
 
 const ProfileSchema = z.object({ kind: z.enum(IDENTIFY_KINDS), summary: z.string().max(300), confidence: z.number().min(0).max(1) });
 export type MerchantProfile = z.infer<typeof ProfileSchema> & { model: string; costUsd: number };
 
 export async function identifyMerchant(input: { merchantName: string; mcc: string | null; description: string }, subjectId: string | null, evalCaseId?: string): Promise<MerchantProfile> {
+  if (!isEnabled('AI.merchant.identify')) return { kind: 'unknown', summary: 'Merchant identify is switched off in /system.', confidence: 0, model: 'off', costUsd: 0 };
   return withRun('AI.merchant.identify', subjectId, async () => {
-    const { local, model } = getPorts();
+    const { model } = getPorts();
+    const local = isEnabled('model.ollama') ? getPorts().local : null;
     const req = { step: 'identify' as const, model: config.modelWorker, system: IDENTIFY_SYSTEM, maxTokens: 400,
       user: JSON.stringify({ transaction: { description: input.description, amountCents: 0 }, merchantName: input.merchantName, mcc: input.mcc }),
       jsonSchema: IDENTIFY_JSON_SCHEMA as unknown as Record<string, unknown> };

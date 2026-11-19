@@ -152,3 +152,12 @@ export const qboTokens = sqliteTable('qbo_tokens', {
   expiresAt: text('expires_at').notNull(),
   updatedAt: text('updated_at').notNull()
 });
+
+/** Per-component on/off (processes and tools from processes.yaml). Absent row = enabled. */
+export const componentStates = sqliteTable('component_states', {
+  componentId: text('component_id').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+  configJson: text('config_json'),
+  updatedBy: text('updated_by').notNull(),
+  updatedAt: text('updated_at').notNull()
+});

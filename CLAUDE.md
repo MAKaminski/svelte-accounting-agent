@@ -9,7 +9,7 @@ Read ARCHITECTURE.md first. The registries are the source of truth: `src/lib/com
 - Never code a transfer between own accounts or a person payment without an owner answer (rule guard + validator).
 - Every Slash write carries an idempotency key and runs inside `withRun`.
 - New action = registry entry → route → screen. `pnpm arch:check` fails until they exist.
-- New process = card in `processes.yaml` + a use-case trace. A `judgment` step needs eval cases in `fixtures/evals/seed.json` first.
+- New process = card in `processes.yaml` (with `toggle` and, if switchable, `whenOff`) + a use-case trace; new external operation = a `tools:` entry. Both show up in `/system` automatically. A `judgment` step needs eval cases in `fixtures/evals/seed.json` first.
 - New external call = port + fixture first; live behind a `*_MODE` switch.
 - Money is integer cents; times are UTC ISO strings. Dates in files and commits are absolute (2026-11-19, not "today").
 - Secrets only in `.env` (never committed). QuickBooks tokens are encrypted with `TOKEN_ENC_KEY`.
@@ -22,6 +22,7 @@ Read ARCHITECTURE.md first. The registries are the source of truth: `src/lib/com
 | Pull / research / recommend | `pnpm vitest run tests/m1-pull.test.ts tests/m2-recommend.test.ts` |
 | Approve / undo / ask | `pnpm vitest run tests/m3-write.test.ts` |
 | Mappings | `pnpm vitest run tests/m4-learn.test.ts` |
+| Control plane / switches | `pnpm vitest run tests/m6-control.test.ts` |
 | Prompt or model routing | `pnpm evals` (fixture) · `MODEL_MODE=live pnpm evals` (costs money) |
 | UI | `pnpm test:e2e` |
 | Docs | `pnpm arch:check && pnpm diagrams:check` |

@@ -7,9 +7,11 @@ import * as schema from '../src/lib/server/db/schema';
 import { commands } from '../src/lib/commands';
 
 type Step = { kind: 'rule' | 'judgment' | 'human'; does: string; tier?: string; evals?: string[] };
-type Proc = { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number } };
+type Proc = { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number }; toggle?: boolean; whenOff?: string };
+type Tool = { target: string; port: string; ops: string[]; usedBy: string[]; toggle: boolean; whenOff?: string };
 type Registry = {
   processes: Record<string, Proc>;
+  tools: Record<string, Tool>;
   interactions: Record<string, string>[];
   traces: { name: string; actor: string; trigger: string; processes: string[]; end: string }[];
 };
@@ -92,6 +94,18 @@ blocks.interactions = [
   ...reg.interactions.map((i) => `| ${code(i.from)} | ${i.to} | ${i.via} | ${i.sync} | ${esc(i.payload)} | ${esc(i.timeout)} |`)
 ].join('\n');
 
+blocks.tools = [
+  '| Tool | Target | Port · ops | Used by | Switch | When off |',
+  '|---|---|---|---|---|---|',
+  ...Object.entries(reg.tools ?? {}).map(([id, t]) => `| ${code(id)} | ${t.target} | ${t.port}: ${t.ops.join(', ')} | ${t.usedBy.map(code).join(', ')} | ${t.toggle ? 'yes' : 'required'} | ${esc(t.whenOff ?? '—')} |`)
+].join('\n');
+
+blocks.toggles = [
+  '| Process | Switch | When off |',
+  '|---|---|---|',
+  ...Object.entries(reg.processes).filter(([, p]) => p.toggle).map(([id, p]) => `| ${code(id)} | yes | ${esc(p.whenOff ?? '')} |`)
+].join('\n');
+
 blocks.traces = [
   '| Use case | Actor | Trigger | Processes | End state |',
   '|---|---|---|---|---|',
@@ -127,6 +141,15 @@ for (const [id, p] of Object.entries(reg.processes)) {
     if (!s.tier) problems.push(`process ${id}: judgment step has no tier`);
   }
   for (const w of p.writes) if (!tableNames.has(w)) problems.push(`process ${id}: writes unknown table ${w}`);
+}
+for (const [id, p] of Object.entries(reg.processes)) {
+  if (typeof p.toggle !== 'boolean') problems.push(`process ${id}: toggle must be true or false`);
+  if (p.toggle && !p.whenOff) problems.push(`process ${id}: toggle without whenOff behavior`);
+}
+for (const [id, t] of Object.entries(reg.tools ?? {})) {
+  if (!/^[a-z]+\.[a-z]+$/.test(id)) problems.push(`tool ${id}: id must be <port>.<name>`);
+  if (t.toggle && !t.whenOff) problems.push(`tool ${id}: toggle without whenOff behavior`);
+  for (const u of t.usedBy) if (!procIds.has(u)) problems.push(`tool ${id}: usedBy unknown process ${u}`);
 }
 const written = new Set(Object.values(reg.processes).flatMap((p) => p.writes));
 for (const t of tableNames) if (!written.has(t)) problems.push(`table ${t}: written by no process`);

@@ -8,6 +8,7 @@ import type { EvidenceKind } from '../db/schema';
 import { classifyTxKind, MCC, PAYOUT_AMOUNT_TOLERANCE_CENTS, PAYOUT_DATE_TOLERANCE_DAYS } from './rules';
 import { identifyMerchant } from './identify';
 import { accountNames } from './view';
+import { isEnabled } from '../components';
 import type { Line } from '$lib/types';
 
 export interface EvidenceDraft { kind: EvidenceKind; reference: string | null; summary: string; payoutRowId?: string }
@@ -84,7 +85,8 @@ export async function gatherEvidence(entryId: string): Promise<{ drafts: Evidenc
 
   // 2. QuickBooks history by vendor name, trigram ≥ 0.6 (rule)
   let qboHit = false;
-  if (kind === 'card') {
+  if (kind === 'card' && !isEnabled('qbo.read')) notes.push('QuickBooks lookup (qbo.read) is switched off');
+  if (kind === 'card' && isEnabled('qbo.read')) {
     try {
       const { qbo } = getPorts();
       const vendors = await qbo.listVendors();

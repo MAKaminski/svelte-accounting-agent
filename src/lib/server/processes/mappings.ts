@@ -7,6 +7,7 @@ import type { Line, MappingProposal } from '$lib/types';
 import { MAPPING_MIN_SUPPORT } from './rules';
 import { accountNames } from './view';
 import { withRun } from './runs';
+import { isEnabled } from '../components';
 
 function view(p: typeof schema.mappingProposals.$inferSelect, dryRun?: boolean): MappingProposal {
   return { ...p, accountName: accountNames().get(p.valueId) ?? p.valueId, ...(dryRun !== undefined ? { dryRun } : {}) };
@@ -14,6 +15,7 @@ function view(p: typeof schema.mappingProposals.$inferSelect, dryRun?: boolean):
 
 /** 3+ approvals of the same merchant to the same single account with no conflicts → proposal. */
 export function proposeMappingFor(entryId: string): void {
+  if (!isEnabled('MW.mapping.propose')) return;
   const db = getDb();
   const t = db.select().from(schema.slashTransactions).where(eq(schema.slashTransactions.accountingEntryId, entryId)).get();
   if (!t?.merchantId) return;
@@ -70,6 +72,7 @@ export async function applyMapping(id: string, opts: { yes?: boolean; dryRun?: b
     if (!p) throw new AppError('not_found', `mapping proposal ${id} not found`, 404);
     if (p.status !== 'proposed') throw new AppError('bad_state', `Proposal is ${p.status}`, 409);
     if (opts.dryRun) return view(p, true);
+    if (!isEnabled('slash.mappings')) throw new AppError('tool_off', 'Slash mappings tool (slash.mappings) is switched off in /system', 409);
     if (!opts.yes) throw new AppError('confirm_required', 'Applying a rule writes to Slash and recodes entries in review; pass --yes', 400);
     await getPorts().slash.upsertMapping({ source: { type: p.sourceType, id: p.sourceId }, dimension: p.dimension, valueId: p.valueId, applyToExistingEntries: true }, `${p.id}:apply`);
     db.update(schema.mappingProposals).set({ status: 'applied', appliedAt: nowIso() }).where(eq(schema.mappingProposals.id, id)).run();
