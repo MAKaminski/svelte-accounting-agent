@@ -1,6 +1,6 @@
 // Ledger connections: CRUD, encrypted credentials, and the adapter for each connection.
 import { eq } from 'drizzle-orm';
-import { getDb, schema } from '../db';
+import { currentOrgId, getDb, schema } from '../db';
 import { getPorts } from '../ports';
 import { config } from '../env';
 import { AppError, newId, nowIso } from '../util';
@@ -8,6 +8,7 @@ import { decrypt, encrypt } from '../qbo.tokens';
 import { CAPABILITIES, type Capabilities, type LedgerAdapter, type LedgerKind } from './types';
 import { SlashAdapter } from './slash.adapter';
 import { LiveMercury, MercuryAdapter } from './mercury';
+import { LiveSlash } from '../slash';
 
 export type ConnectionRow = typeof schema.ledgerConnections.$inferSelect;
 export interface ConnectionConfig {
@@ -15,6 +16,8 @@ export interface ConnectionConfig {
   accountIds?: string[];
   /** qbo_direct: Mercury account id → QuickBooks bank account id. */
   qboBankAccountIdByAccount?: Record<string, string>;
+  /** Slash: legal entity header for multi-entity accounts. */
+  legalEntityId?: string;
 }
 
 export const DEFAULT_SLASH_ID = 'conn_slash';
@@ -69,6 +72,7 @@ export async function addConnection(inp: AddConnectionInput): Promise<Connection
   if (!inp.name?.trim()) throw new AppError('bad_name', 'name is required', 400);
   const mode = inp.mode ?? 'fixture';
   if (inp.kind === 'mercury' && mode === 'live' && !inp.token) throw new AppError('token_required', 'A live Mercury connection needs a token (read-only is enough)', 400);
+  if (inp.kind === 'slash' && mode === 'live' && !inp.token) throw new AppError('token_required', 'A live Slash connection needs an API key (Slash dashboard → Settings → Developer)', 400);
   await ensureDefaultConnections();
   const caps = CAPABILITIES[inp.kind];
   const now = nowIso();
@@ -81,7 +85,7 @@ export async function addConnection(inp: AddConnectionInput): Promise<Connection
     createdAt: now, updatedAt: now
   };
   await getDb().insert(schema.ledgerConnections).values(row).run();
-  adapters.delete(row.id);
+  adapters.delete(akey(row.id));
   return await getConnection(row.id);
 }
 
@@ -96,7 +100,7 @@ export async function updateConnection(id: string, patch: { config?: ConnectionC
     } : {}),
     updatedAt: nowIso()
   }).where(eq(schema.ledgerConnections.id, id)).run();
-  adapters.delete(id);
+  adapters.delete(akey(id));
   return await getConnection(id);
 }
 
@@ -127,20 +131,23 @@ export async function recordPull(id: string, error: string | null) {
   await getDb().update(schema.ledgerConnections).set({ lastPullAt: nowIso(), lastError: error, updatedAt: nowIso() }).where(eq(schema.ledgerConnections.id, id)).run();
 }
 
+// Keyed by org + connection: two companies can both have conn_slash, with different credentials.
 const adapters = new Map<string, LedgerAdapter>();
+const akey = (connectionId: string) => `${currentOrgId()}:${connectionId}`;
 
 export async function getAdapter(connectionId: string): Promise<LedgerAdapter> {
-  const cached = adapters.get(connectionId);
+  const cached = adapters.get(akey(connectionId));
   if (cached) return cached;
   const c = await getConnection(connectionId);
   const ports = getPorts();
   let a: LedgerAdapter;
-  if (c.kind === 'slash') a = new SlashAdapter(ports.slash);
+  // Live Slash: the connection's own encrypted key (per org). Without one, the app-level port (fixture, or env key locally).
+  if (c.kind === 'slash') a = new SlashAdapter(c.mode === 'live' && c.credentialsEnc ? new LiveSlash(decrypt(c.credentialsEnc), configOf(c).legalEntityId ?? '') : ports.slash);
   else if (c.kind === 'mercury') {
     const port = c.mode === 'live' ? new LiveMercury(decrypt(c.credentialsEnc!)) : ports.mercury;
     a = new MercuryAdapter(port, configOf(c).accountIds ?? []);
   } else throw new AppError('bad_kind', `no adapter for ${c.kind}`, 400);
-  adapters.set(connectionId, a);
+  adapters.set(akey(connectionId), a);
   return a;
 }
 

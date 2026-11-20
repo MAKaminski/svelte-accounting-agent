@@ -386,6 +386,35 @@ processes:
       usd: 0
     toggle: false
 
+  MW.org.create:
+    trigger: "First boot (default org), `books orgs create` (M8 step 3), tests"
+    input: "{ name: string, id?: org_<letters, digits, - or _> }"
+    steps:
+      - kind: rule
+        does: "validate name and id; insert orgs row as the owner role (orgs is global, no RLS)"
+      - kind: rule
+        does: "inside the new org's RLS context: default Slash connection (inactive) + a copy of the 9 seed eval cases"
+    output: "org id; orgs row, ledger_connections row, 9 eval_cases rows for that org"
+    writes: [ orgs, ledger_connections, eval_cases ]
+    fails: "1: bad name or id (400)"
+    accept: "tests/m8-tenancy.test.ts — each new org gets its own 9 eval cases; org B sees none of A's rows"
+    budget: { p95_ms: 300, usd: 0 }
+    toggle: false
+  MW.audit.record:
+    trigger: "Every successful mutating API call (inside handle())"
+    input: "{ actor: user id | token:<id> | system, action: registry process id, subject: path :id, body }"
+    steps:
+      - kind: rule
+        does: "look up the registry command for route + method; redact keys matching token|secret|password|key|credential"
+      - kind: rule
+        does: "insert one audit_log row in the request's org (RLS)"
+    output: "audit_log row"
+    writes: [ audit_log ]
+    fails: "2: DB error → the request returns 500 (an unaudited write is not acceptable)"
+    accept: "tests/m8-tenancy.test.ts — audit row per write, secrets redacted"
+    budget: { p95_ms: 10, usd: 0 }
+    toggle: false
+
 interactions:
   - { from: MW.ledger.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
   - { from: MW.coa.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/dimensions(+values)", timeout: "10 s; 5 tries" }
@@ -459,6 +488,21 @@ traces:
       - FE.ledger.toggle
       - MW.ledger.pull
     end: connection active, items pulled
+  - name: New company
+    actor: Owner (system on first boot)
+    trigger: Default org missing, or a new company is added
+    processes:
+      - MW.org.create
+      - MW.coa.pull
+      - FE.ledger.add
+    end: "org with its own connections, chart, switches and eval cases; invisible to other orgs (RLS)"
+  - name: Audited change
+    actor: Owner, reviewer
+    trigger: Any write (approve, toggle, ledger change)
+    processes:
+      - FE.component.toggle
+      - MW.audit.record
+    end: audit_log row with actor, process id and redacted body
 tools:
   slash.read:
     target: Slash API

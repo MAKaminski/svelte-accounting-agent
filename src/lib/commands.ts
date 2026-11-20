@@ -242,6 +242,14 @@ export const commands: Command[] = [
 
 export const commandByName = new Map(commands.map((c) => [c.name, c]));
 
+/** SvelteKit route id (/api/ledgers/[id]/state) + method → the registry entry (first match). */
+const byRoute = new Map<string, Command>();
+for (const c of commands) {
+  const k = `${c.method} ${c.path.replace(/:(\w+)/g, '[$1]')}`;
+  if (!byRoute.has(k)) byRoute.set(k, c);
+}
+export const commandForRoute = (method: string, routeId: string | null) => (routeId ? byRoute.get(`${method} ${routeId}`) : undefined);
+
 export function buildPath(cmd: Command, values: Record<string, unknown>): string {
   let path = cmd.path.replace(/:(\w+)/g, (_, k) => encodeURIComponent(String(values[k] ?? '')));
   const q = cmd.params.filter((p) => p.in === 'query' && values[camel(p.name)] !== undefined);

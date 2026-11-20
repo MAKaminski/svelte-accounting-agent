@@ -1,4 +1,6 @@
 // Tiny in-process job queue with bounded concurrency. Tests and `--wait` callers await drain().
+// A job runs in the org context it was enqueued from (RLS), never in whatever context pump() happens to be in.
+import { currentOrgId, currentUserId, hasOrgContext, withOrgDetached } from '../db';
 type Job = () => Promise<unknown>;
 const pending: Job[] = [];
 let active = 0;
@@ -6,7 +8,10 @@ const CONCURRENCY = 4;
 let waiters: (() => void)[] = [];
 
 export function enqueue(job: Job) {
-  pending.push(job);
+  if (hasOrgContext()) {
+    const orgId = currentOrgId(), userId = currentUserId();
+    pending.push(() => withOrgDetached(orgId, job, userId));
+  } else pending.push(job);
   pump();
 }
 

@@ -2,6 +2,9 @@
 // HTTP 4xx → CLI exit 1 (user error); 5xx → exit 2 (upstream/system error).
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { AppError } from './util';
+import { commandForRoute } from '$lib/commands';
+import { audit } from './audit';
+import { armCommitTimer } from './scheduler';
 
 export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: RequestEvent }) => Promise<T> | T) {
   return async (event: RequestEvent) => {
@@ -15,6 +18,11 @@ export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: Requ
         }
       }
       const data = await fn({ body, event });
+      if (event.request.method !== 'GET') {
+        const cmd = commandForRoute(event.request.method, event.route.id);
+        await audit(cmd?.process ?? `${event.request.method} ${event.route.id}`, event.params.id ?? null, { command: cmd?.name ?? null, body });
+        await armCommitTimer(); // an approve/undo may have opened or closed an undo window
+      }
       return json(data, { headers: { 'server-timing': `app;dur=${Date.now() - t0}` } });
     } catch (e) {
       if (e instanceof AppError) {

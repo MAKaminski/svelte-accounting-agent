@@ -108,17 +108,26 @@ export async function useSessionOrg(orgId: string) {
   sessionOrg = orgId;
 }
 
-// PGlite has one connection, so org contexts take turns (re-entrant for the same org).
+// PGlite has one connection, so org contexts take turns. Re-entrant per org: the session is entered when the
+// lock is first taken and restored only when the last holder releases it.
 let lock: { orgId: string; count: number } | null = null;
 const waiters: (() => void)[] = [];
-async function acquire(orgId: string) {
+async function acquire(orgId: string, exec: (q: string) => Promise<void>) {
   while (lock && lock.orgId !== orgId) await new Promise<void>((r) => waiters.push(r));
-  if (lock) lock.count++;
-  else lock = { orgId, count: 1 };
+  if (lock) { lock.count++; return; }
+  lock = { orgId, count: 1 };
+  await enterOrg(exec, orgId);
 }
-function release() {
-  if (!lock) return;
-  if (--lock.count === 0) { lock = null; waiters.splice(0).forEach((w) => w()); }
+async function release(exec: (q: string) => Promise<void>) {
+  if (!lock || --lock.count > 0) return;
+  try {
+    // Restore the session org (tests/scripts) or clear it.
+    if (sessionOrg) { if (sessionOrg !== lock.orgId) await enterOrg(exec, sessionOrg); }
+    else await leaveOrg(exec);
+  } finally {
+    lock = null;
+    waiters.splice(0).forEach((w) => w());
+  }
 }
 
 /** Run fn with the org's RLS context. Re-entrant: a nested call for the same org reuses the context. */
@@ -128,16 +137,12 @@ export async function withOrg<T>(orgId: string, fn: () => Promise<T>, userId: st
   if (cur && cur.orgId === orgId) return fn();
   const r = root!;
   if (r.kind === 'pglite') {
-    await acquire(orgId);
     const exec = (q: string) => r.db.execute(sql.raw(q)).then(() => undefined);
+    await acquire(orgId, exec);
     try {
-      await enterOrg(exec, orgId);
       return await als.run({ db: r.db, orgId, userId }, fn);
     } finally {
-      // Restore the session org (tests/scripts) or clear it.
-      if (sessionOrg && sessionOrg !== orgId) await enterOrg(exec, sessionOrg);
-      else if (!sessionOrg) await leaveOrg(exec);
-      release();
+      await release(exec);
     }
   }
   const conn = await r.reserve!();
@@ -162,8 +167,35 @@ export function currentOrgId(): string {
   if (sessionOrg) return sessionOrg;
   throw new Error('No org context');
 }
+/**
+ * Run fn in a fresh org context, detached from the caller's (a queued job may outlive the request that
+ * queued it, and that request's reserved connection is released when it ends).
+ */
+export function withOrgDetached<T>(orgId: string, fn: () => Promise<T>, userId: string | null = null): Promise<T> {
+  return als.exit(() => withOrg(orgId, fn, userId));
+}
+
+/** True inside withOrg (not for the tests' session org, which needs no re-entry). */
+export function hasOrgContext() { return !!als.getStore(); }
 export function currentUserId(): string | null {
   return als.getStore()?.userId ?? null;
+}
+
+/**
+ * Scheduler leader election: hold a session advisory lock on one dedicated connection for the life of the
+ * process. During a deploy overlap only the holder runs jobs; when it exits, Postgres frees the lock.
+ * PGlite (one process) is always the leader.
+ */
+let leaderConn: { release: () => void } | null = null;
+export async function tryLeaderLock(key = 0x6c6c78 /* "llx" */): Promise<boolean> {
+  await initDb();
+  const r = root!;
+  if (r.kind === 'pglite' || leaderConn) return true;
+  const conn = await r.reserve!();
+  const res = (await conn.db.execute(sql`select pg_try_advisory_lock(${key}) as ok`)) as unknown as { ok: boolean }[];
+  if (res[0]?.ok) { leaderConn = conn; return true; }
+  conn.release();
+  return false;
 }
 
 /** First row or undefined (replaces better-sqlite3's .get()). */
