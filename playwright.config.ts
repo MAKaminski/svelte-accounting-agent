@@ -15,6 +15,6 @@ export default defineConfig({
     url: 'http://localhost:5174/api/health',
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { DATABASE_URL: 'pglite:data/e2e-pglite', APP_DB_ROLE: 'books_app', UNDO_WINDOW_MS: '1500', APP_PASSCODE: '' }
+    env: { DATABASE_URL: 'pglite:data/e2e-pglite', APP_DB_ROLE: 'books_app', UNDO_WINDOW_MS: '1500', AUTH_GOOGLE_ID: '' /* dev bypass: owner@local */ }
   }
 });

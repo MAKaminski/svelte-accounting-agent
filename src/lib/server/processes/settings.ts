@@ -1,3 +1,4 @@
+import { devBypass } from '../identity';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, schema } from '../db';
 import { config, env } from '../env';
@@ -11,7 +12,7 @@ export async function settings() {
   return {
     slashMode: config.slashMode, slashKeyPresent: !!env('SLASH_API_KEY'), legalEntityPresent: !!env('SLASH_LEGAL_ENTITY_ID'),
     qboMode: config.qboMode, qboConnected, modelMode: config.modelMode, modelWorker: config.modelWorker, modelIntegrator: config.modelIntegrator,
-    ollama: !!config.ollamaUrl, passcodeSet: !!config.passcode, pullIntervalMin: config.pullIntervalMin, undoWindowMs: config.undoWindowMs,
+    ollama: !!config.ollamaUrl, devBypass: devBypass(), pullIntervalMin: config.pullIntervalMin, undoWindowMs: config.undoWindowMs,
     accounts: (await db.select().from(schema.dimensionValues).all()).length, lastPullAt: lastPull?.startedAt ?? null
   };
 }

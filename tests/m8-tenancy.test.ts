@@ -14,7 +14,7 @@ import { POST as toggleRoute } from '../src/routes/api/system/components/[id]/st
 function ev(method: string, routeId: string, path: string, body: unknown, params: Record<string, string> = {}) {
   const url = new URL(`http://test${path}`);
   return { request: new Request(url, { method, body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
-    route: { id: routeId }, params, url, locals: { user: 'owner@test' } } as never;
+    route: { id: routeId }, params, url, locals: { user: 'owner@test', role: 'owner' } } as never;
 }
 
 // Every assertion runs as books_app (APP_DB_ROLE), so row-level security — not app code — does the isolating.

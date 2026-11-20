@@ -11,7 +11,7 @@ const err = (s: string) => process.stderr.write(s.endsWith('\n') ? s : s + '\n')
 function globalHelp(): string {
   const w = Math.max(...commands.map((c) => `${c.noun} ${c.verb}`.length));
   const lines = commands.map((c) => `  ${`${c.noun} ${c.verb}`.padEnd(w)}  ${c.summary}${c.writesSlash ? ' [writes to Slash]' : ''}`);
-  return `books — LaceLuxx Books agent CLI\n\nUsage: books <noun> <verb> [args] [flags]\n\nCommands:\n${lines.join('\n')}\n\nGlobal flags:\n  --json   Machine-readable output (same schema as the API)\n  --help   Help for any command\n\nEnv: BOOKS_URL (default http://localhost:5173), APP_PASSCODE\nExit codes: 0 ok · 1 user error · 2 upstream/system error\n`;
+  return `books — LaceLuxx Books agent CLI\n\nUsage: books <noun> <verb> [args] [flags]\n\nCommands:\n${lines.join('\n')}\n\nGlobal flags:\n  --json   Machine-readable output (same schema as the API)\n  --help   Help for any command\n\nEnv: BOOKS_URL (default http://localhost:5173), BOOKS_TOKEN (API token from Settings → Members; not needed with the local dev bypass)\nExit codes: 0 ok · 1 user error · 2 upstream/system error\n`;
 }
 
 function commandHelp(c: Command): string {
@@ -67,7 +67,8 @@ async function main(argv: string[]): Promise<number> {
   const base = (process.env.BOOKS_URL ?? 'http://localhost:5173').replace(/\/$/, '');
   const body = { ...Object.fromEntries(cmd.params.filter((p) => p.in === 'body' && values[camel(p.name)] !== undefined).map((p) => [camel(p.name), values[camel(p.name)]])), ...(values.token ? { token: values.token } : {}), ...(cmd.body ?? {}) };
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (process.env.APP_PASSCODE) headers['x-books-passcode'] = process.env.APP_PASSCODE;
+  // Hosted app: an API token from Settings → Members (BOOKS_TOKEN). Local dev bypass needs none.
+  if (process.env.BOOKS_TOKEN) headers.authorization = `Bearer ${process.env.BOOKS_TOKEN}`;
   let res: Response;
   try {
     res = await fetch(base + buildPath(cmd, values), { method: cmd.method, headers, body: cmd.method === 'GET' ? undefined : JSON.stringify(body) });

@@ -172,7 +172,7 @@ export const SettingsSchema = z.object({
   modelWorker: z.string(),
   modelIntegrator: z.string(),
   ollama: z.boolean(),
-  passcodeSet: z.boolean(),
+  devBypass: z.boolean(),
   pullIntervalMin: z.number(),
   undoWindowMs: z.number(),
   accounts: z.number(),
@@ -252,3 +252,25 @@ export const LedgerDetailSchema = LedgerConnectionSchema.extend({
   ledgerAccounts: z.array(z.object({ id: z.string(), name: z.string() })),
   qboBankAccounts: z.array(z.object({ id: z.string(), name: z.string() }))
 });
+
+// ---- Members, tokens, orgs (M8) ----
+export const RoleSchema = z.enum(['owner', 'reviewer', 'viewer']);
+export const MemberSchema = z.object({
+  id: z.string(), // mem_… for members, inv_… for pending invites
+  kind: z.enum(['member', 'invite']), email: z.string(), name: z.string().nullable(), role: RoleSchema,
+  lastSeenAt: z.string().nullable(), createdAt: z.string(), you: z.boolean()
+});
+export type Member = z.infer<typeof MemberSchema>;
+export const ApiTokenSchema = z.object({
+  id: z.string(), name: z.string(), userEmail: z.string(), lastUsedAt: z.string().nullable(), revokedAt: z.string().nullable(), createdAt: z.string()
+});
+export type ApiToken = z.infer<typeof ApiTokenSchema>;
+/** Returned once by token.create; the raw token is never stored or shown again. */
+export const NewTokenSchema = ApiTokenSchema.extend({ token: z.string() });
+export const OrgSchema = z.object({ id: z.string(), name: z.string(), role: RoleSchema, current: z.boolean() });
+export type Org = z.infer<typeof OrgSchema>;
+export const WhoamiSchema = z.object({
+  email: z.string(), name: z.string().nullable(), orgId: z.string(), orgName: z.string(), role: RoleSchema,
+  via: z.enum(['google', 'token', 'dev-bypass'])
+});
+export type Whoami = z.infer<typeof WhoamiSchema>;

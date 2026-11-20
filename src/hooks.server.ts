@@ -1,39 +1,56 @@
+// Request pipeline: Auth.js (Google session) → who is calling (session, API token, or dev bypass) →
+// which company and role → run the request inside that company's RLS context.
 import { redirect, json, type Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
 import { building } from '$app/environment';
-import { timingSafeEqual } from 'node:crypto';
-import { config } from '$lib/server/env';
+import { handle as authHandle } from './auth';
 import { startScheduler } from '$lib/server/scheduler';
 import { withOrg } from '$lib/server/db';
-import { ensureOrg } from '$lib/server/orgs';
+import { devBypass, devIdentity, identityForEmail, identityForToken, pickOrg, type Identity } from '$lib/server/identity';
+import { env } from '$lib/server/env';
 
-import { sessionToken } from '$lib/server/auth';
-
-function safeEq(a: string, b: string) {
-  const A = Buffer.from(a), B = Buffer.from(b);
-  return A.length === B.length && timingSafeEqual(A, B);
+if (!building) {
+  if (env('NODE_ENV') === 'production' && !env('AUTH_GOOGLE_ID')) {
+    throw new Error('AUTH_GOOGLE_ID is required in production (the owner@local dev bypass is refused).');
+  }
+  startScheduler();
 }
 
-// One default org until Google sign-in lands (M8 step 3); every request runs in its RLS context.
-const orgReady = building ? Promise.resolve('') : ensureOrg();
-if (!building) startScheduler();
+const PUBLIC = (p: string) => p === '/login' || p === '/api/health' || p.startsWith('/auth/');
 
-export const handle: Handle = async ({ event, resolve }) => {
-  const pass = config.passcode;
+const app: Handle = async ({ event, resolve }) => {
+  const path = event.url.pathname;
   event.locals.user = null;
-  if (!pass) {
-    event.locals.user = config.reviewer; // passcode unset: local dev, open (Settings shows a warning)
+  event.locals.identity = null;
+  event.locals.role = null;
+  if (path === '/api/health' || path.startsWith('/auth/')) return resolve(event);
+
+  let id: Identity | null = null;
+  const bearer = event.request.headers.get('authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  if (bearer) {
+    id = await identityForToken(bearer);
+    if (!id) return json({ error: { code: 'unauthorized', message: 'Invalid or revoked token', source: 'app' } }, { status: 401 });
+  } else if (devBypass()) {
+    id = await devIdentity();
   } else {
-    const cookie = event.cookies.get('books_session');
-    const header = event.request.headers.get('x-books-passcode');
-    if ((cookie && safeEq(cookie, sessionToken(pass))) || (header && safeEq(header, pass))) event.locals.user = config.reviewer;
+    const session = await event.locals.auth();
+    if (session?.user?.email) id = await identityForEmail(session.user.email);
   }
-  const open = event.url.pathname === '/login' || event.url.pathname === '/api/health';
-  if (!event.locals.user && !open) {
-    if (event.url.pathname.startsWith('/api/')) return json({ error: { code: 'unauthorized', message: 'Passcode required (set APP_PASSCODE for the CLI)', source: 'app' } }, { status: 401 });
-    redirect(303, `/login?next=${encodeURIComponent(event.url.pathname)}`);
+
+  if (!id) {
+    if (PUBLIC(path)) return resolve(event);
+    if (path.startsWith('/api/')) return json({ error: { code: 'unauthorized', message: 'Sign in required (CLI: set BOOKS_TOKEN)', source: 'app' } }, { status: 401 });
+    redirect(303, `/login?next=${encodeURIComponent(path)}`);
   }
-  if (event.url.pathname === '/api/health') return resolve(event);
-  const orgId = await orgReady;
-  event.locals.orgId = orgId;
-  return withOrg(orgId, () => Promise.resolve(resolve(event)), event.locals.user);
+  if (path === '/login') redirect(303, '/queue');
+
+  const m = pickOrg(id, event.cookies.get('books_org'));
+  event.locals.identity = id;
+  event.locals.user = id.email;
+  event.locals.orgId = m.orgId;
+  event.locals.role = m.role;
+  const actor = id.token ? `token:${id.token.id}` : id.userId;
+  return withOrg(m.orgId, () => Promise.resolve(resolve(event)), actor);
 };
+
+export const handle = sequence(authHandle, app);

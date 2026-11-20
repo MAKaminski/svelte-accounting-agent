@@ -57,6 +57,12 @@ Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`
 | Deactivate a connection (not pulled, no approvals; items stay visible) | `/ledgers` | — | `POST /api/ledgers/:id/state` | Status flips | — |
 | Switch a component on | `/system/agents` | `t` | `POST /api/system/components/:id/state` | Switch flips, node recolors | — |
 | Switch a component off (its whenOff behavior applies) | `/system/agents` | `t` | `POST /api/system/components/:id/state` | Switch flips, node recolors | Confirm dialog naming the whenOff behavior |
+| Invite a Google email with a role (accepted on first sign-in) | `/settings/members` | — | `POST /api/members/invite` | Row appears as pending | — |
+| Change a member's role (the last owner can't be demoted) | `/settings/members` | — | `POST /api/members/:id/role` | Select updates | — |
+| Remove a member or cancel an invite (the last owner can't be removed) | `/settings/members` | — | `POST /api/members/:id/remove` | Row disappears | Requires --yes |
+| Create an API token for the CLI (shown once) | `/settings/members` | — | `POST /api/tokens` | Token shown once with Copy | — |
+| Revoke an API token (next request with it gets 401) | `/settings/members` | — | `POST /api/tokens/:id/revoke` | Row greys out | Requires --yes |
+| Switch the current company (web session) | `/queue` | — | `POST /api/orgs/:id/select` | Page reloads in that company | — |
 | Command palette | everywhere | `⌘K` | any registry command | opens instantly | — |
 <!-- /gen:actions -->
 
@@ -64,39 +70,49 @@ Queue keyboard: `j`/`k` move, `a` approve, `Enter` open, `p` pull, `u` undo. Ent
 
 ### CLI (`books <noun> <verb> [args] [flags]`)
 <!-- gen:cli -->
-| Command | Args / flags | Does | Exit codes | Calls | Process |
-|---|---|---|---|---|---|
-| `books entries pull` | `--since` `--connection` `--dry-run` `--json` | Pull entries in review from Slash, then research and recommend | 0 · 1 · 2 | `POST /api/entries/pull` | `MW.ledger.pull` |
-| `books entries list` | `--state` `--connection` `--json` | List local entries | 0 · 1 · 2 | `GET /api/entries` | `FE.entries.list` |
-| `books entry show` | `<id>` `--json` | Show one entry with evidence and decisions | 0 · 1 · 2 | `GET /api/entries/:id` | `FE.entries.list` |
-| `books entry recommend` | `<id>` `--force` `--json` | Research and recommend one entry | 0 · 1 · 2 | `POST /api/entries/:id/recommend` | `AI.entry.recommend` |
-| `books entry approve` | `<id>` `--yes` `--dry-run` `--override` `--lines` `--memo` `--later` `--json` | Approve: code the entry in Slash and mark it ready to sync | 0 · 1 · 2 | `POST /api/entries/:id/approve` | `FE.entry.approve` |
-| `books entry undo` | `<id>` `--json` | Undo an approval still inside its undo window | 0 · 1 · 2 | `POST /api/entries/:id/undo` | `FE.entry.undo` |
-| `books entry ask` | `<id>` `--text` `--json` | Open a question for the owner | 0 · 1 · 2 | `POST /api/entries/:id/ask` | `FE.entry.ask` |
-| `books entry reject` | `<id>` `--yes` `--reason` `--json` | Reject the recommendation; the entry is coded by hand in Slash | 0 · 1 · 2 | `POST /api/entries/:id/reject` | `FE.entry.reject` |
-| `books questions list` | `--status` `--json` | List questions for the owner | 0 · 1 · 2 | `GET /api/questions` | `FE.questions.list` |
-| `books question answer` | `<id>` `--text` `--json` | Answer a question; the entry is re-recommended with the answer | 0 · 1 · 2 | `POST /api/questions/:id/answer` | `FE.question.answer` |
-| `books mappings list` | `--status` `--json` | List learned rules | 0 · 1 · 2 | `GET /api/mappings` | `FE.mappings.list` |
-| `books mapping apply` | `<id>` `--yes` `--dry-run` `--json` | Write a learned rule to Slash (recodes entries still in review) | 0 · 1 · 2 | `POST /api/mappings/:id/apply` | `FE.mapping.apply` |
-| `books coa pull` | `--dry-run` `--json` | Pull the chart of accounts (Slash account dimension) | 0 · 1 · 2 | `POST /api/coa/pull` | `MW.coa.pull` |
-| `books coa list` | `--json` | List accounts from the local chart of accounts | 0 · 1 · 2 | `GET /api/coa` | `FE.coa.list` |
-| `books payouts import` | `<file>` `--channel` `--json` | Import a Whatnot payout CSV | 0 · 1 · 2 | `POST /api/payouts/import` | `MW.payouts.import` |
-| `books evals run` | `--json` | Run the eval cases (exit 1 if any fail) | 0 · 1 · 2 | `POST /api/evals/run` | `IN.evals.run` |
-| `books evals show` | `--json` | Show the last eval run, shadow precision and cost by week | 0 · 1 · 2 | `GET /api/evals` | `FE.evals.show` |
-| `books eval add` | `<entry>` `--json` | Turn a decided entry into a golden eval case | 0 · 1 · 2 | `POST /api/evals/cases` | `FE.eval.add` |
-| `books ledgers list` | `--json` | List ledger connections (Slash, Mercury, …) with capabilities and status | 0 · 1 · 2 | `GET /api/ledgers` | `FE.ledgers.list` |
-| `books ledger show` | `<id>` `--json` | Show one connection: capabilities, blockers, ledger and QuickBooks bank accounts | 0 · 1 · 2 | `GET /api/ledgers/:id` | `FE.ledgers.list` |
-| `books ledger add` | `--kind` `--name` `--mode` `--token-stdin` `--qbo-bank` `--confirm-bank-feed` `--json` | Add a ledger connection (starts inactive) | 0 · 1 · 2 | `POST /api/ledgers` | `FE.ledger.add` |
-| `books ledger configure` | `<id>` `--qbo-bank` `--confirm-bank-feed` `--json` | Update bank-account mapping or bank-feed confirmation | 0 · 1 · 2 | `POST /api/ledgers/:id/config` | `FE.ledger.add` |
-| `books ledger test` | `<id>` `--json` | Test a connection with its stored credentials | 0 · 1 · 2 | `POST /api/ledgers/:id/test` | `MW.ledger.test` |
-| `books ledger enable` | `<id>` `--json` | Activate a connection (pulled hourly, approvals allowed) | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
-| `books ledger disable` | `<id>` `--json` | Deactivate a connection (not pulled, no approvals; items stay visible) | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
-| `books system graph` | `--json` | Show the component graph: agents, processes, tools, tables, external systems | 0 · 1 · 2 | `GET /api/system/graph` | `FE.system.graph` |
-| `books components list` | `--kind` `--json` | List agents, processes and tools with on/off state and 7-day metrics | 0 · 1 · 2 | `GET /api/system/components` | `FE.system.graph` |
-| `books component show` | `<id>` `--json` | Show one component: card, live state graph, recent runs | 0 · 1 · 2 | `GET /api/system/components/:id` | `FE.system.graph` |
-| `books component enable` | `<id>` `--json` | Switch a component on | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
-| `books component disable` | `<id>` `--json` | Switch a component off (its whenOff behavior applies) | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
-| `books settings show` | `--json` | Show connections and configuration | 0 · 1 · 2 | `GET /api/settings` | `FE.settings.show` |
+| Command | Args / flags | Does | Role | Exit codes | Calls | Process |
+|---|---|---|---|---|---|---|
+| `books entries pull` | `--since` `--connection` `--dry-run` `--json` | Pull entries in review from Slash, then research and recommend | reviewer | 0 · 1 · 2 | `POST /api/entries/pull` | `MW.ledger.pull` |
+| `books entries list` | `--state` `--connection` `--json` | List local entries | viewer | 0 · 1 · 2 | `GET /api/entries` | `FE.entries.list` |
+| `books entry show` | `<id>` `--json` | Show one entry with evidence and decisions | viewer | 0 · 1 · 2 | `GET /api/entries/:id` | `FE.entries.list` |
+| `books entry recommend` | `<id>` `--force` `--json` | Research and recommend one entry | reviewer | 0 · 1 · 2 | `POST /api/entries/:id/recommend` | `AI.entry.recommend` |
+| `books entry approve` | `<id>` `--yes` `--dry-run` `--override` `--lines` `--memo` `--later` `--json` | Approve: code the entry in Slash and mark it ready to sync | reviewer | 0 · 1 · 2 | `POST /api/entries/:id/approve` | `FE.entry.approve` |
+| `books entry undo` | `<id>` `--json` | Undo an approval still inside its undo window | reviewer | 0 · 1 · 2 | `POST /api/entries/:id/undo` | `FE.entry.undo` |
+| `books entry ask` | `<id>` `--text` `--json` | Open a question for the owner | reviewer | 0 · 1 · 2 | `POST /api/entries/:id/ask` | `FE.entry.ask` |
+| `books entry reject` | `<id>` `--yes` `--reason` `--json` | Reject the recommendation; the entry is coded by hand in Slash | reviewer | 0 · 1 · 2 | `POST /api/entries/:id/reject` | `FE.entry.reject` |
+| `books questions list` | `--status` `--json` | List questions for the owner | viewer | 0 · 1 · 2 | `GET /api/questions` | `FE.questions.list` |
+| `books question answer` | `<id>` `--text` `--json` | Answer a question; the entry is re-recommended with the answer | reviewer | 0 · 1 · 2 | `POST /api/questions/:id/answer` | `FE.question.answer` |
+| `books mappings list` | `--status` `--json` | List learned rules | viewer | 0 · 1 · 2 | `GET /api/mappings` | `FE.mappings.list` |
+| `books mapping apply` | `<id>` `--yes` `--dry-run` `--json` | Write a learned rule to Slash (recodes entries still in review) | owner | 0 · 1 · 2 | `POST /api/mappings/:id/apply` | `FE.mapping.apply` |
+| `books coa pull` | `--dry-run` `--json` | Pull the chart of accounts (Slash account dimension) | owner | 0 · 1 · 2 | `POST /api/coa/pull` | `MW.coa.pull` |
+| `books coa list` | `--json` | List accounts from the local chart of accounts | viewer | 0 · 1 · 2 | `GET /api/coa` | `FE.coa.list` |
+| `books payouts import` | `<file>` `--channel` `--json` | Import a Whatnot payout CSV | reviewer | 0 · 1 · 2 | `POST /api/payouts/import` | `MW.payouts.import` |
+| `books evals run` | `--json` | Run the eval cases (exit 1 if any fail) | reviewer | 0 · 1 · 2 | `POST /api/evals/run` | `IN.evals.run` |
+| `books evals show` | `--json` | Show the last eval run, shadow precision and cost by week | viewer | 0 · 1 · 2 | `GET /api/evals` | `FE.evals.show` |
+| `books eval add` | `<entry>` `--json` | Turn a decided entry into a golden eval case | reviewer | 0 · 1 · 2 | `POST /api/evals/cases` | `FE.eval.add` |
+| `books ledgers list` | `--json` | List ledger connections (Slash, Mercury, …) with capabilities and status | viewer | 0 · 1 · 2 | `GET /api/ledgers` | `FE.ledgers.list` |
+| `books ledger show` | `<id>` `--json` | Show one connection: capabilities, blockers, ledger and QuickBooks bank accounts | viewer | 0 · 1 · 2 | `GET /api/ledgers/:id` | `FE.ledgers.list` |
+| `books ledger add` | `--kind` `--name` `--mode` `--token-stdin` `--qbo-bank` `--confirm-bank-feed` `--json` | Add a ledger connection (starts inactive) | owner | 0 · 1 · 2 | `POST /api/ledgers` | `FE.ledger.add` |
+| `books ledger configure` | `<id>` `--qbo-bank` `--confirm-bank-feed` `--json` | Update bank-account mapping or bank-feed confirmation | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/config` | `FE.ledger.add` |
+| `books ledger test` | `<id>` `--json` | Test a connection with its stored credentials | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/test` | `MW.ledger.test` |
+| `books ledger enable` | `<id>` `--json` | Activate a connection (pulled hourly, approvals allowed) | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
+| `books ledger disable` | `<id>` `--json` | Deactivate a connection (not pulled, no approvals; items stay visible) | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
+| `books system graph` | `--json` | Show the component graph: agents, processes, tools, tables, external systems | viewer | 0 · 1 · 2 | `GET /api/system/graph` | `FE.system.graph` |
+| `books components list` | `--kind` `--json` | List agents, processes and tools with on/off state and 7-day metrics | viewer | 0 · 1 · 2 | `GET /api/system/components` | `FE.system.graph` |
+| `books component show` | `<id>` `--json` | Show one component: card, live state graph, recent runs | viewer | 0 · 1 · 2 | `GET /api/system/components/:id` | `FE.system.graph` |
+| `books component enable` | `<id>` `--json` | Switch a component on | owner | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
+| `books component disable` | `<id>` `--json` | Switch a component off (its whenOff behavior applies) | owner | 0 · 1 · 2 | `POST /api/system/components/:id/state` | `FE.component.toggle` |
+| `books settings show` | `--json` | Show connections and configuration | viewer | 0 · 1 · 2 | `GET /api/settings` | `FE.settings.show` |
+| `books auth whoami` | `--json` | Who am I: email, company and role | viewer | 0 · 1 · 2 | `GET /api/auth/whoami` | `FE.auth.whoami` |
+| `books members list` | `--json` | List members and pending invites of this company | owner | 0 · 1 · 2 | `GET /api/members` | `FE.members.list` |
+| `books member invite` | `--email` `--role` `--json` | Invite a Google email with a role (accepted on first sign-in) | owner | 0 · 1 · 2 | `POST /api/members/invite` | `FE.member.invite` |
+| `books member role` | `<id>` `--role` `--json` | Change a member's role (the last owner can't be demoted) | owner | 0 · 1 · 2 | `POST /api/members/:id/role` | `FE.member.role` |
+| `books member remove` | `<id>` `--yes` `--json` | Remove a member or cancel an invite (the last owner can't be removed) | owner | 0 · 1 · 2 | `POST /api/members/:id/remove` | `FE.member.remove` |
+| `books tokens list` | `--json` | List API tokens of this company | owner | 0 · 1 · 2 | `GET /api/tokens` | `FE.tokens.list` |
+| `books token create` | `--name` `--json` | Create an API token for the CLI (shown once) | owner | 0 · 1 · 2 | `POST /api/tokens` | `FE.token.create` |
+| `books token revoke` | `<id>` `--yes` `--json` | Revoke an API token (next request with it gets 401) | owner | 0 · 1 · 2 | `POST /api/tokens/:id/revoke` | `FE.token.revoke` |
+| `books orgs list` | `--json` | List the companies you belong to | viewer | 0 · 1 · 2 | `GET /api/orgs` | `FE.orgs.list` |
+| `books org select` | `<id>` `--json` | Switch the current company (web session) | viewer | 0 · 1 · 2 | `POST /api/orgs/:id/select` | `FE.org.select` |
 <!-- /gen:cli -->
 
 Rules: data → stdout, logs → stderr; `--json` returns the API schema; exit 0 ok · 1 user error (HTTP 4xx) · 2 upstream/system error (HTTP 5xx, server unreachable). Every Slash write needs `--yes` and supports `--dry-run`. `--help` is generated from the registry.
@@ -623,27 +639,27 @@ State cards (table → writers):
 <!-- gen:states -->
 | Component (table) | Written by |
 |---|---|
-| `api_tokens` | `—` |
-| `audit_log` | `—` |
+| `api_tokens` | `FE.member.remove`, `FE.token.create`, `FE.token.revoke` |
+| `audit_log` | `MW.audit.record` |
 | `component_states` | `FE.component.toggle` |
 | `decisions` | `FE.entry.approve`, `FE.entry.undo`, `FE.entry.ask`, `FE.entry.reject` |
 | `dimension_values` | `MW.coa.pull`, `MW.qbo.accounts` |
-| `eval_cases` | `FE.eval.add` |
+| `eval_cases` | `FE.eval.add`, `MW.org.create` |
 | `evidence` | `MW.entry.research`, `AI.merchant.identify`, `FE.question.answer` |
-| `invites` | `—` |
-| `ledger_connections` | `MW.ledger.pull`, `FE.ledger.add`, `FE.ledger.toggle` |
+| `invites` | `MW.auth.signin`, `FE.member.invite`, `FE.member.role`, `FE.member.remove` |
+| `ledger_connections` | `MW.ledger.pull`, `FE.ledger.add`, `FE.ledger.toggle`, `MW.org.create` |
 | `ledger_items` | `MW.ledger.pull`, `MW.entry.research`, `AI.entry.recommend`, `FE.entry.approve`, `FE.entry.undo`, `MW.ledger.code`, `MW.ledger.ready`, `FE.entry.ask`, `FE.entry.reject`, `FE.question.answer`, `MW.qbo.write` |
 | `ledger_transactions` | `MW.ledger.pull` |
 | `local_mappings` | `FE.mapping.apply` |
 | `mapping_proposals` | `MW.mapping.propose`, `FE.mapping.apply` |
-| `memberships` | `—` |
-| `orgs` | `—` |
+| `memberships` | `MW.auth.signin`, `FE.member.invite`, `FE.member.role`, `FE.member.remove` |
+| `orgs` | `MW.org.create` |
 | `payout_rows` | `MW.payouts.import` |
 | `qbo_tokens` | `MW.qbo.connect` |
 | `questions` | `FE.entry.ask`, `FE.question.answer` |
 | `recommendations` | `AI.entry.recommend` |
 | `runs` | `IN.evals.run` |
-| `users` | `—` |
+| `users` | `MW.auth.signin` |
 <!-- /gen:states -->
 
 `accounting_entries` invariants: lines sum to the transaction amount; local state never goes ahead of Slash status; nothing is written to Slash without a recorded human decision; an approved entry is written only after `pending_until`.
@@ -688,6 +704,19 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `FE.ledger.add` | /ledgers Add connection, `books ledger add` | { kind, name, mode, token?, config (account → QuickBooks bank mapping), bankFeedConfirmed } | **human**: owner adds the connection and confirms the bank-feed setting (recorded with who and when); token stored AES-GCM encrypted | ledger_connections row (inactive) | 1: bad kind, missing token for live | tests/m7-ledgers.test.ts, tests/e2e/ledgers.spec.ts | 300 ms · $0 |
 | `FE.ledger.toggle` | /ledgers Activate/Deactivate, `books ledger enable\|disable <id>` | connection id + active | **rule**: activation blockers: qbo_direct needs bank-feed confirmation + bank mapping; live Mercury needs a token<br>**human**: state change | connection status | 1: blockers listed | tests/m7-ledgers.test.ts | 300 ms · $0 |
 | `FE.ledgers.list` | /ledgers, `books ledgers list`, `books ledger show` | — | **rule**: connections with capabilities, blockers, counts (never credentials) | LedgerConnection[] / LedgerDetail | — | e2e | 100 ms · $0 |
+| `MW.org.create` | First boot (default org), `books orgs create` (M8 step 3), tests | { name: string, id?: org_<letters, digits, - or _> } | **rule**: validate name and id; insert orgs row as the owner role (orgs is global, no RLS)<br>**rule**: inside the new org's RLS context: default Slash connection (inactive) + a copy of the 9 seed eval cases | org id; orgs row, ledger_connections row, 9 eval_cases rows for that org | 1: bad name or id (400) | tests/m8-tenancy.test.ts — each new org gets its own 9 eval cases; org B sees none of A's rows | 300 ms · $0 |
+| `MW.audit.record` | Every successful mutating API call (inside handle()) | { actor: user id \| token:<id> \| system, action: registry process id, subject: path :id, body } | **rule**: look up the registry command for route + method; redact keys matching token\|secret\|password\|key\|credential<br>**rule**: insert one audit_log row in the request's org (RLS) | audit_log row | 2: DB error → the request returns 500 (an unaudited write is not acceptable) | tests/m8-tenancy.test.ts — audit row per write, secrets redacted | 10 ms · $0 |
+| `MW.auth.signin` | Google sign-in callback (Auth.js) | { email, name, Google sub, email_verified } | **rule**: refuse when no email, unverified, or no membership and no open invite<br>**rule**: create/update users (sub, name, last seen); accept every open invite for that email → memberships | true \| false (false → /login?error=AccessDenied) | refused → /login 'isn't invited' state | tests/m8-auth.test.ts — not invited refused; invite accepted on first sign-in | 150 ms · $0 |
+| `FE.auth.whoami` | `books auth whoami`, layout load | identity resolved in hooks | **rule**: current company + role from the identity | Whoami | 401 when not signed in | tests/m8-auth.test.ts | 20 ms · $0 |
+| `FE.members.list` | /settings/members, `books members list` | — | **rule**: memberships ⨝ users and open invites, RLS-scoped to the company | Member[] | 403 below owner | tests/m8-auth.test.ts | 50 ms · $0 |
+| `FE.member.invite` | Invite form, `books member invite --email --role` | { email, role } | **rule**: validate email + role; refuse duplicates (409)<br>**rule**: existing app user → membership now; else open invite accepted on first sign-in | Member (invite or member) | 1: bad email/role, already a member | tests/m8-auth.test.ts | 80 ms · $0 |
+| `FE.member.role` | Role select, `books member role <id> --role` | { id: mem_…\|inv_…, role } | **rule**: the company always keeps ≥ 1 owner (409 last_owner) | Member | 1: last owner, not found | tests/m8-auth.test.ts | 60 ms · $0 |
+| `FE.member.remove` | Remove / Cancel invite, `books member remove <id> --yes` | { id, yes: true } | **rule**: require --yes; keep ≥ 1 owner; revoke the member's tokens for this company, then delete | Member (as it was) | 1: no --yes, last owner | tests/m8-auth.test.ts | 80 ms · $0 |
+| `FE.tokens.list` | /settings/members, `books tokens list` | — | **rule**: tokens ⨝ users for this company (never the raw token) | ApiToken[] | 403 below owner | tests/m8-auth.test.ts | 40 ms · $0 |
+| `FE.token.create` | New token, `books token create --name` | { name } + calling user (web session, not a token) | **rule**: 32 random bytes (llx_…); store sha256 only; return the raw token once | NewToken (token shown once) | 1: no name; 403 when called with a token | tests/m8-auth.test.ts | 60 ms · $0 |
+| `FE.token.revoke` | Revoke, `books token revoke <id> --yes` | { id, yes: true } | **rule**: set revoked_at; the next request with it gets 401 | ApiToken | 1: no --yes, not found | tests/m8-auth.test.ts | 40 ms · $0 |
+| `FE.orgs.list` | Nav company switcher, `books orgs list` | identity memberships | **rule**: companies the caller belongs to; mark the current one | Org[] | — | tests/m8-auth.test.ts | 20 ms · $0 |
+| `FE.org.select` | Company switcher | { id: org_… } | **rule**: must be a member; tokens are pinned to their company<br>**rule**: set the books_org cookie; the next request runs in that company's RLS context | Org | 404 not a member; 403 with a token | tests/m8-auth.test.ts | 30 ms · $0 |
 <!-- /gen:processes -->
 
 ### Interaction directory
@@ -725,6 +754,12 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | Control plane | Owner | Review or pause a component | `FE.system.graph` → `FE.component.toggle` → `MW.ledger.pull` → `AI.entry.recommend` | component off → its whenOff behavior; on → normal |
 | Mercury expense (QuickBooks direct) | Cron, reviewer | Hourly pull | `MW.ledger.pull` → `MW.coa.pull` → `MW.qbo.accounts` → `MW.entry.research` → `AI.entry.recommend` → `MW.entry.validate` → `FE.entry.approve` → `MW.qbo.write` → `MW.ledger.annotate` | ready (QuickBooks txn created, matched or recoded) |
 | Connect a ledger | Owner | Add Mercury | `FE.ledgers.list` → `FE.ledger.add` → `MW.ledger.test` → `FE.ledger.toggle` → `MW.ledger.pull` | connection active, items pulled |
+| New company | Owner (system on first boot) | Default org missing, or a new company is added | `MW.org.create` → `MW.coa.pull` → `FE.ledger.add` | org with its own connections, chart, switches and eval cases; invisible to other orgs (RLS) |
+| Audited change | Owner, reviewer | Any write (approve, toggle, ledger change) | `FE.component.toggle` → `MW.audit.record` | audit_log row with actor, process id and redacted body |
+| Invite a reviewer | Owner, new reviewer | Owner adds a bookkeeper | `FE.members.list` → `FE.member.invite` → `MW.audit.record` → `MW.auth.signin` → `FE.auth.whoami` → `FE.entry.approve` | reviewer signed in with Google, approving in that company only |
+| CLI with a token | Owner (CLI) | Use the hosted app from a terminal | `FE.token.create` → `FE.tokens.list` → `FE.entries.list` → `FE.token.revoke` | token works for its company; 401 after revoke |
+| Switch company | Member of two companies | Company switcher | `FE.orgs.list` → `FE.org.select` → `FE.entries.list` | every query now scoped to the selected company (RLS) |
+| Change roles | Owner | Promote, demote or remove someone | `FE.member.role` → `FE.member.remove` → `MW.audit.record` | roles updated; ≥ 1 owner kept; removed member's tokens revoked |
 <!-- /gen:traces -->
 
 ## 4b. Control plane (`/system`)

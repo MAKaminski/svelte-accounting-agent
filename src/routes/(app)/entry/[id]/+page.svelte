@@ -2,6 +2,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { call, money } from '$lib/client';
   import { ui } from '$lib/ui.svelte';
+  import { page } from '$app/state';
   import ErrorState from '$lib/components/ErrorState.svelte';
   let { data } = $props();
 
@@ -23,7 +24,10 @@
   const allChosen = $derived(lines.every((l) => l.valueId));
   const rec = $derived(data.entry?.recommendation);
   const edited = $derived(!!rec && (rec.action === 'ask' || JSON.stringify(lines.map((l) => [l.valueId, cents(l.dollars)])) !== JSON.stringify(rec.lines.map((l) => [l.valueId, l.amountCents]))));
-  const canDecide = $derived(!!data.entry && ['recommended', 'invalid', 'asked'].includes(data.entry.state));
+  // Viewers see the decision but can't make it (the API returns 403 too).
+  const isReviewer = $derived(['owner', 'reviewer'].includes(page.data.me?.role ?? ''));
+  const decidable = $derived(!!data.entry && ['recommended', 'invalid', 'asked'].includes(data.entry.state));
+  const canDecide = $derived(decidable && isReviewer);
 
   async function act(name: string, fn: () => Promise<void>) {
     busy = name;
@@ -109,6 +113,13 @@
               <button class="btn warn" type="button" onclick={ask} disabled={!!busy || !askText.trim()}>Ask</button></div>
           </div>
         {/if}
+      {:else if decidable && !isReviewer}
+        <div class="actions" title="Reviewer role needed">
+          <button class="btn primary" type="button" disabled>Approve</button>
+          <button class="btn" type="button" disabled>Ask</button>
+          <button class="btn danger push" type="button" disabled>Reject</button>
+        </div>
+        <p class="muted small">Reviewer role needed</p>
       {:else if ['ready', 'coded', 'synced', 'approved'].includes(e.state)}
         <div class="actions"><button class="btn" type="button" onclick={addEval} disabled={!!busy}>Add as eval case</button></div>
       {/if}

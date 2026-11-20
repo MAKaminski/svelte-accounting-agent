@@ -62,9 +62,9 @@ const blocks: Record<string, string> = {};
     const pos = c.params.filter((p) => p.kind === 'positional').map((p) => code(`<${p.name}>`));
     const flags = c.params.filter((p) => p.kind === 'flag').map((p) => code(`--${p.name}`));
     const exits = c.method === 'GET' ? '0 · 1 · 2' : '0 · 1 · 2';
-    return `| ${code(`books ${c.noun} ${c.verb}`)} | ${[...pos, ...flags, code('--json')].join(' ')} | ${esc(c.summary)} | ${exits} | ${code(`${c.method} ${c.path}`)} | ${code(c.process)} |`;
+    return `| ${code(`books ${c.noun} ${c.verb}`)} | ${[...pos, ...flags, code('--json')].join(' ')} | ${esc(c.summary)} | ${c.role} | ${exits} | ${code(`${c.method} ${c.path}`)} | ${code(c.process)} |`;
   });
-  blocks.cli = ['| Command | Args / flags | Does | Exit codes | Calls | Process |', '|---|---|---|---|---|---|', ...rows].join('\n');
+  blocks.cli = ['| Command | Args / flags | Does | Role | Exit codes | Calls | Process |', '|---|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
 // UI actions.
@@ -123,6 +123,8 @@ for (const c of commands) {
   if (`${c.noun}.${c.verb}` !== c.name) problems.push(`command ${c.name}: name must be noun.verb`);
   if (!/^[a-z]+$/.test(c.noun) || !/^[a-z]+$/.test(c.verb)) problems.push(`command ${c.name}: off-grammar noun/verb`);
   if (!procIds.has(c.process)) problems.push(`command ${c.name}: process ${c.process} not in processes.yaml`);
+  if (!['viewer', 'reviewer', 'owner'].includes(c.role)) problems.push(`command ${c.name}: missing role (viewer | reviewer | owner)`);
+  if (c.method === 'POST' && c.role === 'viewer' && c.name !== 'org.select') problems.push(`command ${c.name}: a write can't be open to viewers`);
   const file = 'src/routes' + c.path.replace(/:(\w+)/g, '[$1]') + '/+server.ts';
   if (!existsSync(file)) problems.push(`command ${c.name}: no route file ${file}`);
   else if (!new RegExp(`export const ${c.method}\\b`).test(readFileSync(file, 'utf8'))) problems.push(`command ${c.name}: ${file} does not export ${c.method}`);

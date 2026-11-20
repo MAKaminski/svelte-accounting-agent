@@ -2,9 +2,11 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { call, money } from '$lib/client';
   import { ui } from '$lib/ui.svelte';
+  import { page } from '$app/state';
   import ErrorState from '$lib/components/ErrorState.svelte';
   import type { Entry } from '$lib/types';
   let { data } = $props();
+  const isReviewer = $derived(['owner', 'reviewer'].includes(page.data.me?.role ?? ''));
 
   const filters = [
     { key: 'recommended', label: 'Recommended' },
@@ -66,7 +68,7 @@
     if (ev.key === 'j' || ev.key === 'ArrowDown') { ui.selectedId = rows[Math.min(i + 1, rows.length - 1)]?.id ?? null; ev.preventDefault(); }
     else if (ev.key === 'k' || ev.key === 'ArrowUp') { ui.selectedId = rows[Math.max(i - 1, 0)]?.id ?? null; ev.preventDefault(); }
     else if (ev.key === 'p') pull();
-    else if (ev.key === 'a' && rows[i]) approveRow(rows[i]);
+    else if (ev.key === 'a' && rows[i] && isReviewer) approveRow(rows[i]);
     else if ((ev.key === 'Enter' || ev.key === 'e' || ev.key === 'q') && rows[i]) goto(`/entry/${rows[i].id}`);
     else if (ev.key === 'u') { const t = [...ui.toasts].reverse().find((x) => x.undo); if (t) t.undo!().then(() => ui.dismiss(t.id)); }
   }
@@ -131,7 +133,7 @@
         <span class="why muted">{e.state === 'invalid' ? e.stateReason : e.recommendation?.action === 'ask' ? e.recommendation.question : e.recommendation?.reasoning}</span>
         <span class="act">
           {#if e.state === 'recommended' && e.recommendation?.action === 'code'}
-            <button class="btn sm primary" type="button" onclick={(ev) => { ev.stopPropagation(); approveRow(e); }}>Approve <span class="kbd">a</span></button>
+            <button class="btn sm primary" type="button" disabled={!isReviewer} title={isReviewer ? undefined : 'Reviewer role needed'} onclick={(ev) => { ev.stopPropagation(); approveRow(e); }}>Approve <span class="kbd">a</span></button>
           {:else if e.state === 'recommended' || e.state === 'asked'}
             <a class="btn sm warn" href="/entry/{e.id}">{e.state === 'asked' ? 'Asked' : e.recommendation?.model.startsWith('off:') ? 'Code' : 'Answer'}</a>
           {:else if e.state === 'invalid'}

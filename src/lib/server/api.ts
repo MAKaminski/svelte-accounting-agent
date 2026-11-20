@@ -4,12 +4,16 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { AppError } from './util';
 import { commandForRoute } from '$lib/commands';
 import { audit } from './audit';
+import { requireRole } from './identity';
 import { armCommitTimer } from './scheduler';
 
 export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: RequestEvent }) => Promise<T> | T) {
   return async (event: RequestEvent) => {
     const t0 = Date.now();
     try {
+      // Role from the registry entry for this route (unregistered routes: reads → viewer, writes → owner).
+      const cmd = commandForRoute(event.request.method, event.route.id);
+      requireRole(event.locals.role, cmd?.role ?? (event.request.method === 'GET' ? 'viewer' : 'owner'));
       let body: Record<string, unknown> = {};
       if (event.request.method !== 'GET') {
         const text = await event.request.text();
@@ -19,7 +23,6 @@ export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: Requ
       }
       const data = await fn({ body, event });
       if (event.request.method !== 'GET') {
-        const cmd = commandForRoute(event.request.method, event.route.id);
         await audit(cmd?.process ?? `${event.request.method} ${event.route.id}`, event.params.id ?? null, { command: cmd?.name ?? null, body });
         await armCommitTimer(); // an approve/undo may have opened or closed an undo window
       }

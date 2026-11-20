@@ -12,7 +12,7 @@ Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and mode
 
 ## Going live
 
-1. `cp .env.example .env` and set `APP_PASSCODE`, `TOKEN_ENC_KEY` (`openssl rand -base64 32`).
+1. `cp .env.example .env` and set `TOKEN_ENC_KEY` (`openssl rand -base64 32`). Leave `AUTH_GOOGLE_ID` empty for the local dev bypass (you are owner@local); set the Google client + `AUTH_SECRET` to test real sign-in.
 2. Slash: create an API key with the narrowest permissions (Slash dashboard → Settings → Developer), set `SLASH_API_KEY`, `SLASH_LEGAL_ENTITY_ID`, `SLASH_MODE=live`. Run `pnpm books coa pull` then `pnpm books entries pull --dry-run`.
 3. Models: set `ANTHROPIC_API_KEY` (https://console.anthropic.com/settings/keys), `MODEL_MODE=live`, then `pnpm books evals run`.
 4. Mercury: `/ledgers` → Add connection (or `printf %s "$TOKEN" | pnpm books ledger add --kind mercury --name Mercury --mode live --token-stdin`) with a read-only token from https://app.mercury.com/settings/tokens. Turn off Mercury's own QuickBooks sync for these accounts, map each account to its QuickBooks bank account, confirm, then activate.

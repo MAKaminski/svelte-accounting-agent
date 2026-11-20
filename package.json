@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "org:invite": "tsx scripts/invite.ts",
     "books": "tsx src/cli/books.ts",
     "cli:build": "esbuild src/cli/books.ts --bundle --platform=node --format=esm --outfile=dist/books.mjs",
     "evals": "tsx scripts/evals.ts",
@@ -41,6 +42,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
+    "@auth/sveltekit": "1.11.3",
     "@electric-sql/pglite": "^0.5.17",
     "@xyflow/svelte": "^2.0.2",
     "drizzle-orm": "^0.45.4",

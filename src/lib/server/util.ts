@@ -25,7 +25,7 @@ export class AppError extends Error {
   constructor(
     public code: string,
     message: string,
-    public status: 400 | 404 | 409 | 422 | 502 | 503 = 400,
+    public status: 400 | 401 | 403 | 404 | 409 | 422 | 502 | 503 = 400,
     public source: 'app' | 'slash' | 'qbo' | 'model' = 'app'
   ) {
     super(message);

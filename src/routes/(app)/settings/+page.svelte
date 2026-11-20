@@ -49,7 +49,7 @@
     </section>
     <section class="card pane">
       <h2>App</h2>
-      <dl><dt>Passcode</dt><dd>{s.passcodeSet ? 'set' : 'NOT SET — anyone on this machine can open the app'}</dd><dt>Auto pull</dt><dd>{s.pullIntervalMin ? `every ${s.pullIntervalMin} min` : 'off'}</dd><dt>Undo window</dt><dd>{s.undoWindowMs / 1000} s</dd></dl>
+      <dl><dt>Sign-in</dt><dd>{s.devBypass ? 'Dev bypass — everyone is owner@local (no Google credentials set)' : 'Google, invite-only'}</dd><dt>Auto pull</dt><dd>{s.pullIntervalMin ? `every ${s.pullIntervalMin} min` : 'off'}</dd><dt>Undo window</dt><dd>{s.undoWindowMs / 1000} s</dd></dl>
     </section>
   </div>
 {/if}

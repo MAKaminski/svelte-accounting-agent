@@ -120,6 +120,22 @@ export function format(name: string, data: unknown, values: Record<string, unkno
     }
     case 'component.enable':
     case 'component.disable': { const c = data as { id: string; enabled: boolean; whenOff: string | null }; return `${c.id} is ${c.enabled ? 'on' : `off — ${c.whenOff}`}`; }
+    case 'auth.whoami': { const w = data as { email: string; orgName: string; orgId: string; role: string; via: string }; return `${w.email} · ${w.role} of ${w.orgName} (${w.orgId}) · via ${w.via}`; }
+    case 'members.list': {
+      const ms = data as { id: string; kind: string; email: string; role: string; lastSeenAt: string | null; you: boolean }[];
+      return table(['ID', 'Email', 'Role', 'Status'], ms.map((m) => [m.id, m.email + (m.you ? ' (you)' : ''), m.role, m.kind === 'invite' ? 'invite pending' : m.lastSeenAt ? `seen ${m.lastSeenAt.slice(0, 16).replace('T', ' ')}` : 'never signed in']));
+    }
+    case 'member.invite': { const m = data as { id: string; email: string; role: string; kind: string }; return m.kind === 'invite' ? `Invited ${m.email} as ${m.role} (${m.id}) · accepted on first Google sign-in` : `Added ${m.email} as ${m.role} (${m.id})`; }
+    case 'member.role': { const m = data as { email: string; role: string }; return `${m.email} is now ${m.role}`; }
+    case 'member.remove': { const m = data as { email: string; kind: string }; return m.kind === 'invite' ? `Cancelled the invite for ${m.email}` : `Removed ${m.email}; their tokens for this company are revoked`; }
+    case 'tokens.list': {
+      const ts = data as { id: string; name: string; userEmail: string; lastUsedAt: string | null; revokedAt: string | null }[];
+      return table(['ID', 'Name', 'User', 'Status'], ts.map((t) => [t.id, t.name, t.userEmail, t.revokedAt ? 'revoked' : t.lastUsedAt ? `used ${t.lastUsedAt.slice(0, 16).replace('T', ' ')}` : 'never used']));
+    }
+    case 'token.create': { const t = data as { id: string; name: string; token: string }; return `Created ${t.id} "${t.name}". Copy it now — it is not shown again:\n\n  export BOOKS_TOKEN=${t.token}\n`; }
+    case 'token.revoke': { const t = data as { id: string; name: string }; return `Revoked ${t.id} "${t.name}"`; }
+    case 'orgs.list': { const os = data as { id: string; name: string; role: string; current: boolean }[]; return table(['', 'ID', 'Company', 'Role'], os.map((o) => [o.current ? '*' : '', o.id, o.name, o.role])); }
+    case 'org.select': { const o = data as { id: string; name: string }; return `Now in ${o.name} (${o.id}) for this web session`; }
     default: return JSON.stringify(data, null, 2);
   }
 }

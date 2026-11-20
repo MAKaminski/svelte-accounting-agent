@@ -1,11 +1,9 @@
-import { fail, redirect } from '@sveltejs/kit';
-import { config } from '$lib/server/env';
-import { sessionToken } from '$lib/server/auth';
-export const actions = {
-  default: async ({ request, cookies, url }) => {
-    const form = await request.formData();
-    if (form.get('passcode') !== config.passcode) return fail(401, { error: 'Wrong passcode' });
-    cookies.set('books_session', sessionToken(config.passcode), { path: '/', httpOnly: true, sameSite: 'strict', maxAge: 30 * 86400 });
-    redirect(303, url.searchParams.get('next') ?? '/queue');
-  }
-};
+import { signIn } from '../../auth';
+import type { Actions } from './$types';
+
+// Auth.js redirects back here with ?error=AccessDenied when MW.auth.signin refuses the account.
+export const load = ({ url }) => ({
+  error: url.searchParams.get('error'),
+  next: url.searchParams.get('next') ?? '/queue'
+});
+export const actions: Actions = { default: signIn };
