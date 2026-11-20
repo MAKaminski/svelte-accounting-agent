@@ -33,7 +33,7 @@ export function format(name: string, data: unknown, values: Record<string, unkno
       const r = e.recommendation;
       return [
         `${e.id}  ${e.date}  ${e.merchantName ?? e.description}  ${money(e.amountCents)}`,
-        `state ${e.state} · Slash ${e.slashStatus}${e.stateReason ? ` · ${e.stateReason}` : ''}`,
+        `state ${e.state} · Slash ${e.ledgerStatus}${e.stateReason ? ` · ${e.stateReason}` : ''}`,
         r ? `\nRecommendation (${r.model}, conf ${r.confidence.toFixed(2)}): ${r.action}` : '\nNo recommendation',
         ...(r?.lines ?? []).map((l) => `  ${l.accountName.padEnd(28)} ${money(l.amountCents).padStart(12)}  ${l.description ?? ''}`),
         r?.question ? `  Q: ${r.question}` : '', r ? `  ${r.reasoning}` : '',
@@ -81,6 +81,28 @@ export function format(name: string, data: unknown, values: Record<string, unkno
       return `Last eval: ${s.lastRun ? `${s.lastRun.passed}/${s.lastRun.total}` : 'never run'}\nShadow precision: ${pct(s.shadow.precision)} over ${s.shadow.decisions} decisions · auto-approve would have taken ${s.shadow.autoApproveWouldHave} at ${pct(s.shadow.autoApprovePrecision)}`;
     }
     case 'eval.add': { const c = data as { id: string; name: string }; return `Added eval case ${c.id}: ${c.name}`; }
+    case 'ledgers.list': {
+      const ls = data as { id: string; kind: string; name: string; mode: string; status: string; capabilities: { code: string }; inReview: number; lastPullAt: string | null; lastError: string | null; blockers: string[] }[];
+      if (!ls.length) return 'No ledgers connected — books ledger add --kind mercury --name "Mercury"';
+      return table(['ID', 'NAME', 'KIND', 'MODE', 'STATUS', 'WRITES TO', 'IN REVIEW', 'LAST PULL'], ls.map((l) => [l.id, l.name, l.kind, l.mode, l.status,
+        l.capabilities.code === 'qbo_direct' ? 'QuickBooks directly' : `${l.name} sync`, String(l.inReview), l.lastError ? `error: ${l.lastError.slice(0, 30)}` : (l.lastPullAt?.slice(0, 16).replace('T', ' ') ?? 'never')]), [6]);
+    }
+    case 'ledger.show':
+    case 'ledger.test': {
+      const l = data as { id: string; name: string; kind: string; status: string; mode: string; blockers: string[]; health: { ok: boolean; message: string } | null; capabilities: Record<string, unknown>; config: { qboBankAccountIdByAccount?: Record<string, string> } };
+      return [`${l.id} · ${l.name} · ${l.kind} · ${l.mode} · ${l.status}`,
+        l.health ? `Health: ${l.health.ok ? 'ok' : 'FAILED'} — ${l.health.message}` : '',
+        `Capabilities: ${Object.entries(l.capabilities).map(([k, v]) => `${k}=${v}`).join(', ')}`,
+        `Bank mapping: ${Object.entries(l.config.qboBankAccountIdByAccount ?? {}).map(([k, v]) => `${k}→${v}`).join(', ') || '—'}`,
+        l.blockers.length ? `Cannot activate yet:\n  - ${l.blockers.join('\n  - ')}` : 'Ready to activate'].filter(Boolean).join('\n');
+    }
+    case 'ledger.add':
+    case 'ledger.configure': {
+      const l = data as { id: string; name: string; status: string; blockers: string[] };
+      return `${name === 'ledger.add' ? 'Added' : 'Updated'} ${l.id} (${l.name}) · ${l.status}${l.blockers.length ? `\nBefore activating:\n  - ${l.blockers.join('\n  - ')}` : `\nActivate with: books ledger enable ${l.id}`}`;
+    }
+    case 'ledger.enable':
+    case 'ledger.disable': { const l = data as { id: string; status: string }; return `${l.id} is ${l.status}`; }
     case 'system.graph': {
       const g = data as { nodes: { id: string; kind: string; status: string }[]; edges: unknown[] };
       const by = (k: string) => g.nodes.filter((n) => n.kind === k).length;

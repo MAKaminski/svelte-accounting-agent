@@ -12,7 +12,7 @@ import { identifyMerchant } from './identify';
 import { enabledAccounts, pullCoa } from './coa';
 import { withRun } from './runs';
 
-interface CaseInput { transaction: { description: string; amountCents: number; mcc?: string; merchantName?: string; kind?: TxKind }; evidence: { id: string; kind: string; summary: string }[]; payoutMatched?: boolean; ownerAnswers?: string[] }
+interface CaseInput { chart?: 'slash' | 'qbo'; transaction: { description: string; amountCents: number; mcc?: string; merchantName?: string; kind?: TxKind }; evidence: { id: string; kind: string; summary: string }[]; payoutMatched?: boolean; ownerAnswers?: string[] }
 interface Expected { action: 'code' | 'ask'; valueIds?: string[]; minConfidence?: number; noQuestion?: boolean; questionMentions?: string[]; questionHasBestGuess?: boolean; lineCount?: number; sumCents?: number; noLines?: boolean; forbidValueIds?: string[] }
 
 export function seedEvalCases(path = resolve(process.cwd(), 'fixtures/evals/seed.json')) {
@@ -44,10 +44,11 @@ export function score(out: { action: string; lines: { valueId: string; amountCen
 export async function runEvals(): Promise<EvalRun> {
   return withRun('IN.evals.run', null, async (runId) => {
     const db = getDb();
-    if (!enabledAccounts().length) await pullCoa();
+    if (!enabledAccounts('slash').length) await pullCoa();
+    if (!enabledAccounts('qbo').length) await pullCoa({ includeQbo: true });
     if (!db.select().from(schema.evalCases).limit(1).get()) seedEvalCases();
-    const accounts = enabledAccounts().map((a) => ({ id: a.id, name: a.name }));
-    const names = new Map(accounts.map((a) => [a.id, a.name]));
+    const charts = { slash: enabledAccounts('slash').map((a) => ({ id: a.id, name: a.name })), qbo: enabledAccounts('qbo').map((a) => ({ id: a.id, name: a.name })) };
+    const names = new Map([...charts.slash, ...charts.qbo].map((a) => [a.id, a.name]));
     const cases = db.select().from(schema.evalCases).orderBy(schema.evalCases.id).all();
     const results: EvalRun['cases'] = [];
     for (const c of cases) {
@@ -67,7 +68,7 @@ export async function runEvals(): Promise<EvalRun> {
         }
         const input: RecInput = { transaction: { ...ci.transaction, kind }, evidence, ownerAnswers: ci.ownerAnswers ?? [] };
         try {
-          const r = await recommendForInput(input, { accounts, payoutMatched: !!ci.payoutMatched });
+          const r = await recommendForInput(input, { accounts: charts[ci.chart ?? 'slash'], payoutMatched: !!ci.payoutMatched });
           cost += r.costUsd;
           failures = score(r.output, exp, names, r.errors);
         } catch (e) {

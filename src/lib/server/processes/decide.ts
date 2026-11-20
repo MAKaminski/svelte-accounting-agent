@@ -1,14 +1,15 @@
-// Human decisions and the Slash write path.
-// FE.entry.approve → (undo window) → MW.entry.code → MW.entry.ready. FE.entry.undo / ask / reject.
+// Human decisions and the write path.
+// FE.entry.approve → (undo window) → commit by capability (ledger | qbo_direct). FE.entry.undo / ask / reject.
 import { and, desc, eq, lte, inArray } from 'drizzle-orm';
 import { getDb, schema } from '../db';
-import { getPorts } from '../ports';
 import { config } from '../env';
 import { AppError, newId, nowIso } from '../util';
 import { SlashHttpError } from '../slash';
 import type { Decision, Line, Question } from '$lib/types';
 import { LineSchema } from '$lib/types';
-import { classifyTxKind } from './rules';
+import { txKindOf } from './research';
+import { getAdapter, getConnection, activationBlockers, chartSourceOf } from '../ledgers/registry';
+import { writeToQbo, annotateLedger } from './qbowrite';
 import { validateLines } from './validate';
 import { enabledAccounts } from './coa';
 import { accountNames, latestRec } from './view';
@@ -18,9 +19,10 @@ import { questionView } from './questions';
 import { isEnabled } from '../components';
 
 const HELD = 'Held: Slash writes (slash.write) are switched off in /system';
+const HELD_QBO = 'Held: QuickBooks writes (qbo.write) are switched off in /system';
 
 function loadEntry(id: string) {
-  const e = getDb().select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, id)).get();
+  const e = getDb().select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, id)).get();
   if (!e) throw new AppError('not_found', `entry ${id} not found`, 404);
   return e;
 }
@@ -51,6 +53,10 @@ export async function approve(entryId: string, inp: ApproveInput): Promise<Decis
     const rec = latestRec(entryId);
     if (!rec) throw new AppError('no_recommendation', 'Entry has no recommendation yet; run `books entry recommend` first', 409);
     if (openQuestion(entryId) && !inp.override) throw new AppError('open_question', 'entry has an open question; answer it or pass --override', 409);
+    const conn = getConnection(e.connectionId);
+    if (conn.status !== 'active') throw new AppError('connection_inactive', `${conn.name} is inactive; activate it in /ledgers before approving`, 409);
+    const blockers = activationBlockers(conn);
+    if (blockers.length) throw new AppError('connection_not_ready', `${conn.name}: ${blockers.join('; ')}`, 409);
     const allowed = ['recommended', 'invalid', ...(inp.override ? ['asked'] : [])];
     if (!allowed.includes(e.localState)) throw new AppError('bad_state', `Entry is ${e.localState}; only recommended entries can be approved`, 409);
 
@@ -68,10 +74,10 @@ export async function approve(entryId: string, inp: ApproveInput): Promise<Decis
       if (e.localState === 'invalid') throw new AppError('invalid_recommendation', `Recommendation is invalid (${e.stateReason}); pass corrected --lines`, 409);
     }
     const memo = (inp.memo ?? rec.memo).slice(0, 200);
-    const t = db.select().from(schema.slashTransactions).where(eq(schema.slashTransactions.accountingEntryId, entryId)).get();
+    const t = db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, entryId)).get();
     const hasOwnerAnswer = !!db.select().from(schema.evidence).where(and(eq(schema.evidence.entryId, entryId), eq(schema.evidence.kind, 'owner_answer'))).get();
-    const errs = validateLines(lines, { amountCents: e.amountCents, enabledValueIds: new Set(enabledAccounts().map((a) => a.id)),
-      kind: classifyTxKind(t?.description ?? '', !!t?.merchantId), hasOwnerAnswer: hasOwnerAnswer || !!inp.override });
+    const errs = validateLines(lines, { amountCents: e.amountCents, enabledValueIds: new Set(enabledAccounts(chartSourceOf(e.connectionId)).map((a) => a.id)),
+      kind: txKindOf(t), hasOwnerAnswer: hasOwnerAnswer || !!inp.override });
     if (errs.length) throw new AppError('invalid_lines', errs.join('; '), 422);
 
     const now = new Date();
@@ -85,7 +91,7 @@ export async function approve(entryId: string, inp: ApproveInput): Promise<Decis
     const pendingUntil = inp.later ? nowIso(new Date(now.getTime() + config.undoWindowMs)) : nowIso(now);
     db.transaction(() => {
       db.insert(schema.decisions).values(d).run();
-      db.update(schema.accountingEntries).set({ localState: 'approved', pendingUntil, stateReason: null, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'approved', pendingUntil, stateReason: null, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
     });
     proposeMappingFor(entryId);
     if (!inp.later) await commit(entryId);
@@ -98,26 +104,49 @@ export async function undo(entryId: string): Promise<Decision> {
     const db = getDb();
     const e = loadEntry(entryId);
     if (e.localState !== 'approved' || !e.pendingUntil || Date.parse(e.pendingUntil) <= Date.now()) {
-      throw new AppError('undo_window_closed', `Nothing to undo: entry is ${e.localState}${e.localState === 'approved' ? ' and already sending to Slash' : ''}`, 409);
+      throw new AppError('undo_window_closed', `Nothing to undo: entry is ${e.localState}${e.localState === 'approved' ? ' and already being written' : ''}`, 409);
     }
     const prev = latestDecision(entryId)!;
     const d = { id: newId('dec'), recommendationId: prev.recommendationId, action: 'undone' as const, finalLinesJson: null, finalMemo: null, decidedBy: config.reviewer, decidedAt: nowIso() };
     db.transaction(() => {
       db.insert(schema.decisions).values(d).run();
-      db.update(schema.accountingEntries).set({ localState: 'recommended', pendingUntil: null, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'recommended', pendingUntil: null, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
     });
     proposeMappingFor(entryId);
     return decisionView(db.select().from(schema.decisions).where(eq(schema.decisions.id, d.id)).get()!, entryId);
   });
 }
 
-/** MW.entry.code then MW.entry.ready for one approved entry whose undo window has passed. */
+/** Commit one approved entry whose undo window has passed, through the connection's capability:
+ *  code: 'ledger'     → MW.ledger.code → MW.ledger.ready (Slash; Slash syncs to QuickBooks)
+ *  code: 'qbo_direct' → MW.qbo.write (dedupe → create/update in QuickBooks) → optional MW.ledger.annotate */
 export async function commit(entryId: string): Promise<void> {
   const db = getDb();
   const e = loadEntry(entryId);
-  if (!isEnabled('slash.write')) {
-    if ((e.localState === 'approved' || e.localState === 'coded') && e.stateReason !== HELD) {
-      db.update(schema.accountingEntries).set({ stateReason: HELD, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+  const adapter = getAdapter(e.connectionId);
+  const direct = adapter.capabilities.code === 'qbo_direct';
+  const killSwitch = direct ? 'qbo.write' : 'slash.write';
+  if (!isEnabled(killSwitch)) {
+    const held = direct ? HELD_QBO : HELD;
+    if ((e.localState === 'approved' || e.localState === 'coded') && e.stateReason !== held) {
+      db.update(schema.ledgerItems).set({ stateReason: held, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
+    }
+    return;
+  }
+  if (direct) {
+    if (e.localState !== 'approved' || (e.pendingUntil && Date.parse(e.pendingUntil) > Date.now())) return;
+    const d = latestDecision(entryId);
+    if (!d?.finalLinesJson) return;
+    const out = await writeToQbo(entryId, d);
+    db.update(schema.ledgerItems).set({
+      localState: out.state, stateReason: out.reason, updatedAt: nowIso(),
+      pendingUntil: out.retry ? nowIso(new Date(Date.now() + 60_000)) : null,
+      ...(out.qboTxnId ? { qboTxnId: out.qboTxnId, qboTxnType: out.qboTxnType } : {})
+    }).where(eq(schema.ledgerItems.id, entryId)).run();
+    if (out.state === 'ready') {
+      const names = accountNames();
+      const lines = JSON.parse(d.finalLinesJson) as Line[];
+      await annotateLedger(entryId, `Coded in QuickBooks by LaceLuxx Books: ${lines.map((l) => names.get(l.valueId) ?? l.valueId).join(' / ')}`);
     }
     return;
   }
@@ -126,21 +155,18 @@ export async function commit(entryId: string): Promise<void> {
     const d = latestDecision(entryId);
     if (!d?.finalLinesJson) return;
     const lines = JSON.parse(d.finalLinesJson) as Line[];
-    const body = lines.length === 1
-      ? { memo: d.finalMemo ?? undefined, dimensions: { account: lines[0].valueId } }
-      : { memo: d.finalMemo ?? undefined, lineItems: lines.map((l) => ({ amountCents: l.amountCents, description: l.description, dimensions: { account: l.valueId } })) };
     try {
-      await withRun('MW.entry.code', entryId, () => getPorts().slash.updateEntry(entryId, body, `${d.id}:code`));
-      db.update(schema.accountingEntries).set({ localState: 'coded', pendingUntil: null, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+      await withRun('MW.ledger.code', entryId, () => adapter.code!(e.externalId, { memo: d.finalMemo ?? undefined, lines }, `${d.id}:code`));
+      db.update(schema.ledgerItems).set({ localState: 'coded', pendingUntil: null, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
     } catch (err) {
       if (err instanceof SlashHttpError && err.httpStatus === 409) {
-        db.update(schema.accountingEntries).set({ pendingUntil: nowIso(new Date(Date.now() + 60_000)), stateReason: 'SLASH: entry is syncing; retrying in 60 s', updatedAt: nowIso() })
-          .where(eq(schema.accountingEntries.id, entryId)).run();
+        db.update(schema.ledgerItems).set({ pendingUntil: nowIso(new Date(Date.now() + 60_000)), stateReason: 'SLASH: entry is syncing; retrying in 60 s', updatedAt: nowIso() })
+          .where(eq(schema.ledgerItems.id, entryId)).run();
         return;
       }
       const msg = (err as Error).message;
-      db.update(schema.accountingEntries).set({ localState: 'recommended', pendingUntil: null, stateReason: `SLASH: coding rejected — ${msg}`, updatedAt: nowIso() })
-        .where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'recommended', pendingUntil: null, stateReason: `SLASH: coding rejected — ${msg}`, updatedAt: nowIso() })
+        .where(eq(schema.ledgerItems.id, entryId)).run();
       return;
     }
   }
@@ -148,18 +174,18 @@ export async function commit(entryId: string): Promise<void> {
   if (cur.localState !== 'coded') return;
   const d = latestDecision(entryId)!;
   try {
-    const res = await withRun('MW.entry.ready', entryId, () => getPorts().slash.markReady(entryId, `${d.id}:ready`));
-    db.update(schema.accountingEntries).set({ localState: 'ready', slashStatus: res.status, stateReason: null, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+    const status = adapter.markReady ? await withRun('MW.ledger.ready', entryId, () => adapter.markReady!(cur.externalId, `${d.id}:ready`)) : 'ready';
+    db.update(schema.ledgerItems).set({ localState: 'ready', ledgerStatus: status, stateReason: null, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
   } catch (err) {
-    db.update(schema.accountingEntries).set({ stateReason: `SLASH: mark ready failed — ${(err as Error).message}`, updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+    db.update(schema.ledgerItems).set({ stateReason: `SLASH: mark ready failed — ${(err as Error).message}`, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
   }
 }
 
 /** Scheduler tick: commit every approved entry whose undo window has expired (and retry coded ones). */
 export async function commitDue(): Promise<number> {
   const db = getDb();
-  const due = db.select({ id: schema.accountingEntries.id }).from(schema.accountingEntries)
-    .where(and(inArray(schema.accountingEntries.localState, ['approved', 'coded']), lte(schema.accountingEntries.pendingUntil, nowIso()))).all();
+  const due = db.select({ id: schema.ledgerItems.id }).from(schema.ledgerItems)
+    .where(and(inArray(schema.ledgerItems.localState, ['approved', 'coded']), lte(schema.ledgerItems.pendingUntil, nowIso()))).all();
   for (const { id } of due) await commit(id);
   return due.length;
 }
@@ -178,7 +204,7 @@ export async function ask(entryId: string, inp: { text?: string; by?: string }):
     db.transaction(() => {
       db.insert(schema.questions).values(q).run();
       if (rec) db.insert(schema.decisions).values({ id: newId('dec'), recommendationId: rec.id, action: 'asked', finalLinesJson: null, finalMemo: null, decidedBy: inp.by ?? config.reviewer, decidedAt: nowIso() }).run();
-      db.update(schema.accountingEntries).set({ localState: 'asked', updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'asked', updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
     });
     return questionView(q.id);
   });
@@ -195,7 +221,7 @@ export async function reject(entryId: string, inp: { reason?: string; yes?: bool
     const d = { id: newId('dec'), recommendationId: rec.id, action: 'rejected' as const, finalLinesJson: null, finalMemo: inp.reason ?? null, decidedBy: inp.by ?? config.reviewer, decidedAt: nowIso() };
     db.transaction(() => {
       db.insert(schema.decisions).values(d).run();
-      db.update(schema.accountingEntries).set({ localState: 'rejected', stateReason: inp.reason ? `Rejected: ${inp.reason}` : 'Rejected; code by hand in Slash', updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'rejected', stateReason: inp.reason ? `Rejected: ${inp.reason}` : 'Rejected; code by hand in Slash', updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
     });
     return decisionView(db.select().from(schema.decisions).where(eq(schema.decisions.id, d.id)).get()!, entryId);
   });

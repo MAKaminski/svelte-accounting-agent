@@ -19,12 +19,13 @@ describe('M6 · control plane', () => {
     const g = systemGraph();
     const kinds = (k: string) => g.nodes.filter((n) => n.kind === k).length;
     expect(kinds('agent')).toBe(2);
-    expect(kinds('tool')).toBe(6);
-    expect(kinds('table')).toBe(13);
-    expect(kinds('external')).toBe(4);
+    expect(kinds('tool')).toBe(9);
+    expect(kinds('table')).toBe(15);
+    expect(kinds('external')).toBe(5); // QuickBooks, Anthropic, Ollama, Slash connection, Mercury (not connected)
     const ids = new Set(g.nodes.map((n) => n.id));
     for (const e of g.edges) { expect(ids.has(e.source)).toBe(true); expect(ids.has(e.target)).toBe(true); }
-    expect(g.edges.some((e) => e.source === 'slash.write' && e.target === 'ext:Slash API')).toBe(true);
+    expect(g.edges.some((e) => e.source === 'slash.write' && e.target === 'conn:conn_slash')).toBe(true);
+    expect(g.nodes.find((n) => n.id === 'ext:Mercury API')!.status).toBe('idle');
     expect(g.nodes.find((n) => n.id === 'AI.entry.recommend')!.status).toBe('active');
   });
 

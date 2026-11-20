@@ -44,8 +44,8 @@ export async function importPayouts(csv: string, channel = 'whatnot', opts: { wa
       for (const r of rows) db.insert(schema.payoutRows).values(r).onConflictDoUpdate({ target: schema.payoutRows.id, set: r }).run();
     });
     // Deposits waiting for review may now match a payout row: re-research them.
-    const credits = db.select({ id: schema.accountingEntries.id }).from(schema.accountingEntries)
-      .where(and(gt(schema.accountingEntries.amountCents, 0), inArray(schema.accountingEntries.localState, ['fetched', 'researched', 'recommended', 'invalid']))).all();
+    const credits = db.select({ id: schema.ledgerItems.id }).from(schema.ledgerItems)
+      .where(and(gt(schema.ledgerItems.amountCents, 0), inArray(schema.ledgerItems.localState, ['fetched', 'researched', 'recommended', 'invalid']))).all();
     for (const c of credits) enqueue(() => researchAndRecommend(c.id).then(() => undefined));
     if (opts.wait) await drain();
     return { imported: rows.length, channel, errors: [] as string[] };

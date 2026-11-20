@@ -64,8 +64,9 @@
   <header>
     <h1>{e.merchantName ?? e.description}</h1>
     <span class="mono amt" class:credit={e.amountCents > 0}>{money(e.amountCents)}</span>
-    <span class="muted">{e.date} · {e.id} · Slash: {e.slashStatus} · local: {e.state}</span>
+    <span class="muted">{e.date} · {e.id} · {e.ledgerName}: {e.ledgerStatus} · local: {e.state}</span>
   </header>
+  <p class="writes">Writes to: <strong>{e.writesTo}</strong>{#if e.qboTxnId} · QuickBooks txn {e.qboTxnId}{/if}</p>
   {#if e.stateReason}<p class="reason" class:bad={e.state === 'invalid'}>{e.stateReason}</p>{/if}
 
   <div class="grid">
@@ -150,6 +151,7 @@
   header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 10px 0 12px; }
   h1 { margin: 0; font-size: 22px; font-weight: 600; }
   .amt { font-size: 18px; } .credit { color: var(--ok); }
+  .writes { margin: -4px 0 10px; font-size: 13px; color: var(--ink-2); }
   .reason { margin: 0 0 12px; font-size: 13px; color: var(--muted); } .reason.bad { color: var(--danger); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
   .pane { padding: 20px; display: flex; flex-direction: column; gap: 12px; }

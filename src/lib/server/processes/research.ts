@@ -1,11 +1,12 @@
 // MW.entry.research — Tier 0 lookups that become evidence rows. Only an unknown merchant reaches a model
 // (AI.merchant.identify). A failing source is noted and research continues (partial, never blocking).
-import { and, eq, inArray, ne, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, notInArray } from 'drizzle-orm';
 import { getDb, schema } from '../db';
 import { getPorts } from '../ports';
 import { newId, nowIso, normalizeMerchant, trigramSimilarity, fmtCents } from '../util';
-import type { EvidenceKind } from '../db/schema';
-import { classifyTxKind, MCC, PAYOUT_AMOUNT_TOLERANCE_CENTS, PAYOUT_DATE_TOLERANCE_DAYS } from './rules';
+import type { Capabilities, EvidenceKind } from '../db/schema';
+import type { LedgerItem } from '../ledgers/types';
+import { classifyTxKind, type TxKind, MCC, PAYOUT_AMOUNT_TOLERANCE_CENTS, PAYOUT_DATE_TOLERANCE_DAYS } from './rules';
 import { identifyMerchant } from './identify';
 import { accountNames } from './view';
 import { isEnabled } from '../components';
@@ -13,33 +14,60 @@ import type { Line } from '$lib/types';
 
 export interface EvidenceDraft { kind: EvidenceKind; reference: string | null; summary: string; payoutRowId?: string }
 
-/** The coding an entry ended up with: Slash raw coding for synced history, else our last approval. */
+/** Transaction kind: the ledger's hint (e.g. Mercury internalTransfer) wins over the description rules. */
+export function txKindOf(t: { description: string; merchantId: string | null; kindHint: string | null } | undefined): TxKind {
+  if (!t) return 'other';
+  return (t.kindHint as TxKind | null) ?? classifyTxKind(t.description, !!t.merchantId);
+}
+
+/** Resolve a ledger-reported account name to our valueId within a chart source. */
+export function valueIdForName(name: string, source: 'slash' | 'qbo'): string | null {
+  const n = name.trim().toLowerCase();
+  const hit = getDb().select().from(schema.dimensionValues).all().find((d) => d.source === source && d.name.trim().toLowerCase() === n);
+  return hit?.id ?? null;
+}
+
+/** The coding an entry ended up with: our last approval if we coded it, else the ledger's own coding (history). */
 export function codingOf(entryId: string): Line[] | null {
   const db = getDb();
-  const e = db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, entryId)).get();
+  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get();
   if (!e) return null;
-  const raw = JSON.parse(e.rawJson) as { amountCents: number; dimensions?: Record<string, string>; lineItems?: { amountCents: number; dimensions?: Record<string, string> }[] };
-  if (raw.lineItems?.length) return raw.lineItems.filter((l) => l.dimensions?.account).map((l) => ({ valueId: l.dimensions!.account, amountCents: l.amountCents }));
-  if (raw.dimensions?.account && e.localState !== 'fetched' && e.localState !== 'researched' && e.localState !== 'recommended') {
-    return [{ valueId: raw.dimensions.account, amountCents: raw.amountCents }];
+  if (['approved', 'coded', 'ready', 'synced'].includes(e.localState)) {
+    const recIds = db.select({ id: schema.recommendations.id }).from(schema.recommendations).where(eq(schema.recommendations.entryId, entryId)).all().map((r) => r.id);
+    if (recIds.length) {
+      const d = db.select().from(schema.decisions).where(inArray(schema.decisions.recommendationId, recIds)).orderBy(desc(schema.decisions.decidedAt)).all()
+        .find((x) => x.action === 'approved' || x.action === 'edited');
+      if (d?.finalLinesJson) return JSON.parse(d.finalLinesJson) as Line[];
+    }
   }
-  return null;
+  if (e.localState !== 'synced' && e.localState !== 'ready' && e.localState !== 'coded') return null;
+  const item = JSON.parse(e.rawJson) as LedgerItem;
+  if (!item.coding?.length) return null;
+  const conn = db.select().from(schema.ledgerConnections).where(eq(schema.ledgerConnections.id, e.connectionId)).get();
+  const source = conn && (JSON.parse(conn.capabilitiesJson) as Capabilities).chart === 'qbo' ? 'qbo' : 'slash';
+  const lines: Line[] = [];
+  for (const l of item.coding) {
+    const valueId = l.valueId ?? (l.accountName ? valueIdForName(l.accountName, source) : null);
+    if (!valueId) continue;
+    lines.push({ valueId, amountCents: l.amountCents });
+  }
+  return lines.length ? lines : null;
 }
 
 function historyEntryIds(merchantId: string | null, description: string, selfId: string): string[] {
   const db = getDb();
   const done = ['coded', 'ready', 'synced'] as const;
   if (merchantId) {
-    return db.select({ id: schema.accountingEntries.id }).from(schema.accountingEntries)
-      .innerJoin(schema.slashTransactions, eq(schema.slashTransactions.accountingEntryId, schema.accountingEntries.id))
-      .where(and(eq(schema.slashTransactions.merchantId, merchantId), inArray(schema.accountingEntries.localState, [...done]), ne(schema.accountingEntries.id, selfId)))
+    return db.select({ id: schema.ledgerItems.id }).from(schema.ledgerItems)
+      .innerJoin(schema.ledgerTransactions, eq(schema.ledgerTransactions.itemId, schema.ledgerItems.id))
+      .where(and(eq(schema.ledgerTransactions.merchantId, merchantId), inArray(schema.ledgerItems.localState, [...done]), ne(schema.ledgerItems.id, selfId)))
       .all().map((r) => r.id);
   }
   const norm = normalizeMerchant(description);
   if (!norm) return [];
-  return db.select({ id: schema.accountingEntries.id, d: schema.slashTransactions.description }).from(schema.accountingEntries)
-    .innerJoin(schema.slashTransactions, eq(schema.slashTransactions.accountingEntryId, schema.accountingEntries.id))
-    .where(and(inArray(schema.accountingEntries.localState, [...done]), ne(schema.accountingEntries.id, selfId)))
+  return db.select({ id: schema.ledgerItems.id, d: schema.ledgerTransactions.description }).from(schema.ledgerItems)
+    .innerJoin(schema.ledgerTransactions, eq(schema.ledgerTransactions.itemId, schema.ledgerItems.id))
+    .where(and(inArray(schema.ledgerItems.localState, [...done]), ne(schema.ledgerItems.id, selfId)))
     .all().filter((r) => normalizeMerchant(r.d) === norm).map((r) => r.id);
 }
 
@@ -71,13 +99,13 @@ function summarizeHistory(label: string, ids: string[]): EvidenceDraft | null {
 
 export async function gatherEvidence(entryId: string): Promise<{ drafts: EvidenceDraft[]; notes: string[]; payoutMatched: boolean }> {
   const db = getDb();
-  const e = db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, entryId)).get();
-  const t = db.select().from(schema.slashTransactions).where(eq(schema.slashTransactions.accountingEntryId, entryId)).get();
+  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get();
+  const t = db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, entryId)).get();
   if (!e || !t) throw new Error(`entry ${entryId} has no transaction`);
   const drafts: EvidenceDraft[] = [];
   const notes: string[] = [];
   const label = t.merchantName ?? t.description;
-  const kind = classifyTxKind(t.description, !!t.merchantId);
+  const kind = txKindOf(t);
 
   // 1. Slash history (rule)
   const hist = summarizeHistory(label, historyEntryIds(t.merchantId, t.description, entryId));
@@ -145,8 +173,8 @@ export async function researchEntry(entryId: string) {
     for (const d of drafts) {
       db.insert(schema.evidence).values({ id: newId('ev'), entryId, kind: d.kind, reference: d.reference, payoutRowId: d.payoutRowId ?? null, summary: d.summary, createdAt: nowIso() }).run();
     }
-    db.update(schema.accountingEntries).set({ localState: 'researched', stateReason: notes.length ? notes.join('; ') : null, updatedAt: nowIso() })
-      .where(eq(schema.accountingEntries.id, entryId)).run();
+    db.update(schema.ledgerItems).set({ localState: 'researched', stateReason: notes.length ? notes.join('; ') : null, updatedAt: nowIso() })
+      .where(eq(schema.ledgerItems.id, entryId)).run();
   });
   return { payoutMatched, notes };
 }

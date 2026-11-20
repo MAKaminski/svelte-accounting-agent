@@ -6,20 +6,24 @@ import { env } from './env';
 
 export interface QboPurchase { id: string; date: string; vendorName: string; amountCents: number; accountName: string }
 export interface QboVendor { id: string; name: string }
+export interface QboAccount { id: string; name: string; type: string; active: boolean }
 
 export interface QboPort {
   readonly mode: 'fixture' | 'live';
   connected(): boolean;
   listVendors(): Promise<QboVendor[]>;
   purchasesByVendor(vendorId: string): Promise<QboPurchase[]>;
+  listAccounts(): Promise<QboAccount[]>;
 }
 
 export class FixtureQbo implements QboPort {
   readonly mode = 'fixture' as const;
   private vendors: QboVendor[];
   private purchases: (QboPurchase & { vendorId: string })[];
+  private accounts: QboAccount[];
   failing = false;
   constructor(dir = resolve(process.cwd(), 'fixtures/qbo')) {
+    this.accounts = JSON.parse(readFileSync(resolve(dir, 'accounts.json'), 'utf8'));
     this.vendors = JSON.parse(readFileSync(resolve(dir, 'vendors.json'), 'utf8'));
     this.purchases = JSON.parse(readFileSync(resolve(dir, 'purchases.json'), 'utf8'));
   }
@@ -31,6 +35,10 @@ export class FixtureQbo implements QboPort {
   async purchasesByVendor(vendorId: string) {
     if (this.failing) throw new AppError('qbo_unavailable', 'QuickBooks fixture set to fail', 502, 'qbo');
     return structuredClone(this.purchases.filter((p) => p.vendorId === vendorId));
+  }
+  async listAccounts() {
+    if (this.failing) throw new AppError('qbo_unavailable', 'QuickBooks fixture set to fail', 502, 'qbo');
+    return structuredClone(this.accounts);
   }
 }
 
@@ -96,6 +104,16 @@ export class LiveQbo implements QboPort {
     throw lastErr;
   }
 
+  async listAccounts() {
+    const rows = await this.query<{ Id: string; Name: string; AccountType: string; Active: boolean }>('select Id, Name, AccountType, Active from Account maxresults 1000');
+    return rows.map((r) => ({ id: r.Id, name: r.Name, type: r.AccountType, active: r.Active }));
+  }
+  /** Token + base URL for the writer (same OAuth session). */
+  async session() {
+    const { token, realmId } = await this.accessTokenPublic();
+    return { token, realmId, base: QBO_BASE[env('QBO_ENV', 'sandbox') as 'sandbox' | 'production'] };
+  }
+  accessTokenPublic() { return this.accessToken(); }
   async listVendors() {
     const rows = await this.query<{ Id: string; DisplayName: string }>('select Id, DisplayName from Vendor maxresults 1000');
     return rows.map((r) => ({ id: r.Id, name: r.DisplayName }));

@@ -44,14 +44,18 @@ export const commands: Command[] = [
     method: 'POST', path: '/api/entries/pull',
     params: [
       { name: 'since', kind: 'flag', type: 'string', in: 'body', help: 'Only entries created on/after this date (YYYY-MM-DD)' },
+      { name: 'connection', kind: 'flag', type: 'string', in: 'body', help: 'Pull one ledger connection only (e.g. conn_mercury)' },
       dryRun
     ],
-    returns: T.PullResultSchema, process: 'MW.entries.pull', shortcut: 'p', screen: '/queue', feedback: 'Spinner on button'
+    returns: T.PullResultSchema, process: 'MW.ledger.pull', shortcut: 'p', screen: '/queue', feedback: 'Spinner on button'
   },
   {
     name: 'entries.list', noun: 'entries', verb: 'list', summary: 'List local entries',
     method: 'GET', path: '/api/entries',
-    params: [{ name: 'state', kind: 'flag', type: 'string', in: 'query', help: 'Filter by local state (e.g. recommended, asked, invalid)' }],
+    params: [
+      { name: 'state', kind: 'flag', type: 'string', in: 'query', help: 'Filter by local state (e.g. recommended, asked, invalid)' },
+      { name: 'connection', kind: 'flag', type: 'string', in: 'query', help: 'Filter by ledger connection id' }
+    ],
     returns: z.array(T.EntrySchema), process: 'FE.entries.list', screen: '/queue'
   },
   {
@@ -154,6 +158,54 @@ export const commands: Command[] = [
     method: 'POST', path: '/api/evals/cases',
     params: [{ name: 'entry', kind: 'positional', type: 'string', in: 'body', required: true, help: 'Entry id with a decision' }],
     returns: z.object({ id: z.string(), kind: z.string(), name: z.string() }), process: 'FE.eval.add', screen: '/entry/[id]', feedback: 'Toast'
+  },
+  {
+    name: 'ledgers.list', noun: 'ledgers', verb: 'list', summary: 'List ledger connections (Slash, Mercury, …) with capabilities and status',
+    method: 'GET', path: '/api/ledgers', params: [],
+    returns: z.array(T.LedgerConnectionSchema), process: 'FE.ledgers.list', screen: '/ledgers'
+  },
+  {
+    name: 'ledger.show', noun: 'ledger', verb: 'show', summary: 'Show one connection: capabilities, blockers, ledger and QuickBooks bank accounts',
+    method: 'GET', path: '/api/ledgers/:id', params: [id('Connection id (conn_…)')],
+    returns: T.LedgerDetailSchema, process: 'FE.ledgers.list', screen: '/ledgers'
+  },
+  {
+    name: 'ledger.add', noun: 'ledger', verb: 'add', summary: 'Add a ledger connection (starts inactive)',
+    method: 'POST', path: '/api/ledgers',
+    params: [
+      { name: 'kind', kind: 'flag', type: 'string', in: 'body', required: true, help: 'slash | mercury' },
+      { name: 'name', kind: 'flag', type: 'string', in: 'body', required: true, help: 'Display name, e.g. "Mercury Operating"' },
+      { name: 'mode', kind: 'flag', type: 'string', in: 'body', help: 'fixture (default) | live' },
+      { name: 'token-stdin', kind: 'flag', type: 'boolean', in: 'body', help: 'Read the ledger API token from stdin (never pass it as an argument)' },
+      { name: 'qbo-bank', kind: 'flag', type: 'string', in: 'body', help: 'Ledger account → QuickBooks bank account, e.g. acc_chk=10' },
+      { name: 'confirm-bank-feed', kind: 'flag', type: 'boolean', in: 'body', help: "Confirm the ledger's own QuickBooks sync and the QBO bank feed are off or will be matched" }
+    ],
+    returns: T.LedgerConnectionSchema, process: 'FE.ledger.add', screen: '/ledgers', feedback: 'Panel closes, row appears', confirm: 'Bank-feed checkbox required for QuickBooks-direct ledgers'
+  },
+  {
+    name: 'ledger.configure', noun: 'ledger', verb: 'configure', summary: 'Update bank-account mapping or bank-feed confirmation',
+    method: 'POST', path: '/api/ledgers/:id/config',
+    params: [
+      id('Connection id'),
+      { name: 'qbo-bank', kind: 'flag', type: 'string', in: 'body', help: 'Ledger account → QuickBooks bank account, e.g. acc_chk=10' },
+      { name: 'confirm-bank-feed', kind: 'flag', type: 'boolean', in: 'body', help: 'Confirm the bank-feed setting (recorded with who and when)' }
+    ],
+    returns: T.LedgerConnectionSchema, process: 'FE.ledger.add', screen: '/ledgers', feedback: 'Saved toast'
+  },
+  {
+    name: 'ledger.test', noun: 'ledger', verb: 'test', summary: 'Test a connection with its stored credentials',
+    method: 'POST', path: '/api/ledgers/:id/test', params: [id('Connection id')],
+    returns: T.LedgerDetailSchema, process: 'MW.ledger.test', screen: '/ledgers', feedback: 'Spinner, then ok/failed badge'
+  },
+  {
+    name: 'ledger.enable', noun: 'ledger', verb: 'enable', summary: 'Activate a connection (pulled hourly, approvals allowed)',
+    method: 'POST', path: '/api/ledgers/:id/state', params: [id('Connection id')], body: { active: true },
+    returns: T.LedgerConnectionSchema, process: 'FE.ledger.toggle', screen: '/ledgers', feedback: 'Status flips', confirm: 'Refused with the blockers listed'
+  },
+  {
+    name: 'ledger.disable', noun: 'ledger', verb: 'disable', summary: 'Deactivate a connection (not pulled, no approvals; items stay visible)',
+    method: 'POST', path: '/api/ledgers/:id/state', params: [id('Connection id')], body: { active: false },
+    returns: T.LedgerConnectionSchema, process: 'FE.ledger.toggle', screen: '/ledgers', feedback: 'Status flips'
   },
   {
     name: 'system.graph', noun: 'system', verb: 'graph', summary: 'Show the component graph: agents, processes, tools, tables, external systems',

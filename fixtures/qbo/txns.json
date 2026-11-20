@@ -1,0 +1,30 @@
+[
+  {
+    "id": "qb_1",
+    "type": "Purchase",
+    "date": "2026-11-12",
+    "bankAccountId": "10",
+    "totalCents": -4510,
+    "lines": [
+      {
+        "accountId": "90",
+        "accountName": "Uncategorized Expense",
+        "amountCents": 4510
+      }
+    ]
+  },
+  {
+    "id": "qb_2",
+    "type": "Purchase",
+    "date": "2026-11-10",
+    "bankAccountId": "10",
+    "totalCents": -960,
+    "lines": [
+      {
+        "accountId": "53",
+        "accountName": "Advertising & Marketing",
+        "amountCents": 960
+      }
+    ]
+  }
+]

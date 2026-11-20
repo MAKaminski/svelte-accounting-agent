@@ -58,8 +58,14 @@ async function main(argv: string[]): Promise<number> {
   for (const p of cmd.params) if (p.required && values[camel(p.name)] === undefined) { err(`error: --${p.name} is required`); return 1; }
   if (cmd.writesSlash && !values.yes && !values.dryRun) { err(`error: books ${noun} ${verb} writes to Slash; pass --yes to confirm or --dry-run to preview`); return 1; }
 
+  if (values.tokenStdin) {
+    // Secrets never go on the command line (shell history); read them from stdin instead.
+    values.token = readFileSync(0, 'utf8').trim();
+    delete values.tokenStdin;
+    if (!values.token) { err('error: --token-stdin given but stdin was empty'); return 1; }
+  }
   const base = (process.env.BOOKS_URL ?? 'http://localhost:5173').replace(/\/$/, '');
-  const body = { ...Object.fromEntries(cmd.params.filter((p) => p.in === 'body' && values[camel(p.name)] !== undefined).map((p) => [camel(p.name), values[camel(p.name)]])), ...(cmd.body ?? {}) };
+  const body = { ...Object.fromEntries(cmd.params.filter((p) => p.in === 'body' && values[camel(p.name)] !== undefined).map((p) => [camel(p.name), values[camel(p.name)]])), ...(values.token ? { token: values.token } : {}), ...(cmd.body ?? {}) };
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (process.env.APP_PASSCODE) headers['x-books-passcode'] = process.env.APP_PASSCODE;
   let res: Response;

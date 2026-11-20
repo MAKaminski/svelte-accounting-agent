@@ -5,7 +5,7 @@ import { getPorts } from '../ports';
 
 export function settings() {
   const db = getDb();
-  const lastPull = db.select().from(schema.runs).where(eq(schema.runs.processId, 'MW.entries.pull')).orderBy(desc(schema.runs.startedAt)).limit(1).get();
+  const lastPull = db.select().from(schema.runs).where(eq(schema.runs.processId, 'MW.ledger.pull')).orderBy(desc(schema.runs.startedAt)).limit(1).get();
   let qboConnected = false;
   try { qboConnected = getPorts().qbo.connected(); } catch { /* not configured */ }
   return {

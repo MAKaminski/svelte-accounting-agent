@@ -1,6 +1,6 @@
 // Generates the synthetic fixtures under fixtures/. Deterministic; rerun with `pnpm tsx scripts/make-fixtures.ts`.
 // Every value here is invented. No real LaceLuxx data ever goes into fixtures or git.
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { normalizeMerchant } from '../src/lib/server/util';
 
 const out = (p: string, v: unknown) => { mkdirSync(p.split('/').slice(0, -1).join('/'), { recursive: true }); writeFileSync(p, typeof v === 'string' ? v : JSON.stringify(v, null, 2) + '\n'); };
@@ -177,4 +177,80 @@ out('fixtures/evals/seed.json', [
     input: { transaction: { description: 'Zelle to J Smith', amountCents: -30000 }, evidence: [] },
     expected: { action: 'ask', noLines: true } }
 ]);
+// ===== M7: QuickBooks chart + existing transactions (dedupe), Mercury ledger, QBO-chart model answers =====
+out('fixtures/qbo/accounts.json', [
+  { id: '10', name: 'Mercury Checking', type: 'Bank', active: true },
+  { id: '11', name: 'Slash Checking', type: 'Bank', active: true },
+  { id: '30', name: 'Inventory', type: 'Other Current Asset', active: true },
+  { id: '31', name: 'Cost of Goods Sold', type: 'Cost of Goods Sold', active: true },
+  { id: '40', name: 'Sales', type: 'Income', active: true },
+  { id: '50', name: 'Platform Fees', type: 'Expense', active: true },
+  { id: '51', name: 'Shipping & Postage', type: 'Expense', active: true },
+  { id: '52', name: 'Supplies', type: 'Expense', active: true },
+  { id: '53', name: 'Advertising & Marketing', type: 'Expense', active: true },
+  { id: '54', name: 'Software & Subscriptions', type: 'Expense', active: true },
+  { id: '55', name: 'Bank Fees', type: 'Expense', active: true },
+  { id: '56', name: 'Payroll Expenses', type: 'Expense', active: true },
+  { id: '60', name: "Owner's Draw", type: 'Equity', active: true },
+  { id: '90', name: 'Uncategorized Expense', type: 'Expense', active: true },
+  { id: '91', name: 'Uncategorized Income', type: 'Income', active: true }
+]);
+// Already in QuickBooks on Mercury Checking (from a bank feed): one uncategorized, one coded differently.
+out('fixtures/qbo/txns.json', [
+  { id: 'qb_1', type: 'Purchase', date: '2026-11-12', bankAccountId: '10', totalCents: -4510, lines: [{ accountId: '90', accountName: 'Uncategorized Expense', amountCents: 4510 }] },
+  { id: 'qb_2', type: 'Purchase', date: '2026-11-10', bankAccountId: '10', totalCents: -960, lines: [{ accountId: '53', accountName: 'Advertising & Marketing', amountCents: 960 }] }
+]);
+out('fixtures/mercury/accounts.json', [{ id: 'acc_chk', name: 'Mercury Checking', kind: 'checking', status: 'active' }]);
+let mn = 0;
+const mtx = (date: string, name: string, amount: number, kind: string, gl?: string) => ({
+  id: `m-${String(++mn).padStart(4, '0')}`, accountId: 'acc_chk', amount, createdAt: `${date}T15:00:00.000Z`, postedAt: `${date}T18:00:00.000Z`,
+  status: 'sent', kind, counterpartyName: name, bankDescription: null, note: null, externalMemo: null, mercuryCategory: null, categoryData: null,
+  glAllocations: gl ? [{ glCodeName: gl, amount: Math.abs(amount) }] : [],
+  accountingStatus: { status: gl ? 'synced' : 'pending' }
+});
+out('fixtures/mercury/transactions.json', [
+  // history: coded in QuickBooks through Mercury's integration before this app
+  mtx('2026-10-01', 'Canva', -14.99, 'debitCardTransaction', 'Software & Subscriptions'),
+  mtx('2026-10-08', 'Canva', -14.99, 'debitCardTransaction', 'Software & Subscriptions'),
+  mtx('2026-10-15', 'Canva', -14.99, 'debitCardTransaction', 'Software & Subscriptions'),
+  mtx('2026-10-05', 'USPS', -8.40, 'debitCardTransaction', 'Shipping & Postage'),
+  mtx('2026-10-19', 'USPS', -12.15, 'debitCardTransaction', 'Shipping & Postage'),
+  mtx('2026-10-20', 'FACEBK ADS', -25.00, 'debitCardTransaction', 'Advertising & Marketing'),
+  // waiting for review
+  mtx('2026-11-01', 'Canva', -14.99, 'debitCardTransaction'),
+  mtx('2026-11-08', 'Canva', -14.99, 'debitCardTransaction'),
+  mtx('2026-11-17', 'Canva', -14.99, 'debitCardTransaction'),
+  mtx('2026-11-10', 'USPS', -9.60, 'debitCardTransaction'),
+  mtx('2026-11-12', 'ULINE', -45.10, 'debitCardTransaction'),
+  mtx('2026-11-15', 'GUSTO', -1250.00, 'outgoingPayment'),
+  mtx('2026-11-16', 'Mercury Savings', -5000.00, 'internalTransfer'),
+  mtx('2026-11-16', 'FACEBK ADS', -30.00, 'debitCardTransaction')
+]);
+{
+  const rec = JSON.parse(readFileSync('fixtures/model/recommend.json', 'utf8'));
+  const q = (valueId: string, confidence: number, memo: string, reasoning: string) => ({ action: 'code', lines: [{ valueId, amountCents: '$AMOUNT' }], memo, confidence, reasoning, question: null });
+  Object.assign(rec, {
+    [`qbo|${k('Canva')}`]: q('qbo:54', 0.95, 'Canva subscription', 'Prior Canva charges were coded Software & Subscriptions.'),
+    [`qbo|${k('USPS')}`]: q('qbo:51', 0.96, 'USPS postage', 'Prior USPS charges were coded Shipping & Postage.'),
+    [`qbo|${k('ULINE')}`]: q('qbo:52', 0.9, 'ULINE packaging supplies', 'QuickBooks shows Uline purchases coded Supplies.'),
+    [`qbo|${k('FACEBK ADS')}`]: q('qbo:53', 0.93, 'Meta ads', 'Prior Meta ad charges were coded Advertising & Marketing.'),
+    [`qbo|${k('GUSTO')}`]: { action: 'ask', lines: [], memo: 'Gusto payment', confidence: 0.55, reasoning: 'Gusto runs payroll and contractor payments; no history settles which.', question: 'Is this Gusto payment payroll (Payroll Expenses) or a contractor payment? Best guess: Payroll Expenses.' },
+    'qbo|__default__': { action: 'ask', lines: [], memo: 'Unknown transaction', confidence: 0.2, reasoning: 'No evidence settles the account.', question: 'What was this for? Best guess: unknown.' }
+  });
+  out('fixtures/model/recommend.json', rec);
+  const seed = JSON.parse(readFileSync('fixtures/evals/seed.json', 'utf8')).filter((c: { id: string }) => !c.id.startsWith('ec_mercury'));
+  seed.push(
+    { id: 'ec_mercury_canva', kind: 'golden', name: 'Mercury card purchase with QuickBooks history',
+      input: { chart: 'qbo', transaction: { description: 'Canva', amountCents: -1499, merchantName: 'Canva', kind: 'card' },
+        evidence: [ev('ev_1', 'slash_history', '3 prior entries from Canva: 3× Software & Subscriptions')] },
+      expected: { action: 'code', valueIds: ['qbo:54'], minConfidence: 0.9 } },
+    { id: 'ec_mercury_gusto', kind: 'edge', name: 'Mercury ACH with counterparty only, no history',
+      input: { chart: 'qbo', transaction: { description: 'GUSTO', amountCents: -125000, merchantName: 'GUSTO', kind: 'other' }, evidence: [] },
+      expected: { action: 'ask', questionHasBestGuess: true } },
+    { id: 'ec_mercury_internal', kind: 'refuse', name: 'Mercury internal transfer to savings',
+      input: { chart: 'qbo', transaction: { description: 'Mercury Savings', amountCents: -500000, merchantName: 'Mercury Savings', kind: 'own_transfer' }, evidence: [] },
+      expected: { action: 'ask', noLines: true } }
+  );
+  out('fixtures/evals/seed.json', seed);
+}
 console.log(`entries ${entries.length} (in_review ${review.length}), transactions ${transactions.length}`);

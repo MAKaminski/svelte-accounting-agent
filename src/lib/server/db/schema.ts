@@ -8,9 +8,41 @@ export const LOCAL_STATES = [
 ] as const;
 export type LocalState = (typeof LOCAL_STATES)[number];
 
-export const accountingEntries = sqliteTable('accounting_entries', {
-  id: text('id').primaryKey(), // Slash entry id (ae_…)
-  slashStatus: text('slash_status').notNull(),
+export type LedgerKind = 'slash' | 'mercury';
+export interface Capabilities {
+  reviewUnit: 'accounting_entry' | 'transaction';
+  chart: 'ledger' | 'qbo';
+  code: 'ledger' | 'qbo_direct';
+  markReady: boolean;
+  mappings: 'ledger' | 'local';
+  annotate: boolean;
+}
+
+/** One ledger the company connects (Slash, Mercury, …). Credentials are AES-GCM encrypted. */
+export const ledgerConnections = sqliteTable('ledger_connections', {
+  id: text('id').primaryKey(),
+  kind: text('kind').$type<LedgerKind>().notNull(),
+  name: text('name').notNull(),
+  mode: text('mode').$type<'fixture' | 'live'>().notNull(),
+  status: text('status').$type<'active' | 'inactive'>().notNull(),
+  configJson: text('config_json').notNull().default('{}'),
+  credentialsEnc: text('credentials_enc'),
+  capabilitiesJson: text('capabilities_json').notNull(),
+  bankFeedConfirmedBy: text('bank_feed_confirmed_by'),
+  bankFeedConfirmedAt: text('bank_feed_confirmed_at'),
+  lastPullAt: text('last_pull_at'),
+  lastError: text('last_error'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+});
+
+export const ledgerItems = sqliteTable('ledger_items', {
+  id: text('id').primaryKey(), // external id: Slash entry id (ae_…) or Mercury txn id (mtx_…)
+  connectionId: text('connection_id').notNull().references(() => ledgerConnections.id),
+  externalId: text('external_id').notNull(),
+  qboTxnId: text('qbo_txn_id'),
+  qboTxnType: text('qbo_txn_type'),
+  ledgerStatus: text('ledger_status').notNull(),
   localState: text('local_state').$type<LocalState>().notNull().default('fetched'),
   amountCents: integer('amount_cents').notNull(),
   memo: text('memo'),
@@ -19,11 +51,13 @@ export const accountingEntries = sqliteTable('accounting_entries', {
   rawJson: text('raw_json').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull()
-}, (t) => [index('entries_state_idx').on(t.localState, t.createdAt)]);
+}, (t) => [index('entries_state_idx').on(t.localState, t.createdAt), index('entries_conn_idx').on(t.connectionId, t.localState), uniqueIndex('entries_ext_idx').on(t.connectionId, t.externalId)]);
 
-export const slashTransactions = sqliteTable('slash_transactions', {
+export const ledgerTransactions = sqliteTable('ledger_transactions', {
   id: text('id').primaryKey(),
-  accountingEntryId: text('accounting_entry_id').notNull().references(() => accountingEntries.id),
+  itemId: text('item_id').notNull().references(() => ledgerItems.id),
+  connectionId: text('connection_id').notNull().references(() => ledgerConnections.id),
+  kindHint: text('kind_hint'),
   date: text('date').notNull(),
   description: text('description').notNull(),
   merchantId: text('merchant_id'),
@@ -32,11 +66,13 @@ export const slashTransactions = sqliteTable('slash_transactions', {
   categoryId: text('category_id'),
   amountCents: integer('amount_cents').notNull(),
   rawJson: text('raw_json').notNull()
-}, (t) => [index('tx_entry_idx').on(t.accountingEntryId), index('tx_merchant_idx').on(t.merchantId)]);
+}, (t) => [index('tx_entry_idx').on(t.itemId), index('tx_merchant_idx').on(t.merchantId)]);
 
 export const dimensionValues = sqliteTable('dimension_values', {
-  id: text('id').primaryKey(), // Slash dimension value id (valueId)
+  id: text('id').primaryKey(), // Slash dimension value id, or `qbo:<Id>` for QuickBooks accounts
   dimension: text('dimension').notNull(), // 'account'
+  source: text('source').$type<'slash' | 'qbo'>().notNull().default('slash'),
+  qboAccountId: text('qbo_account_id'),
   name: text('name').notNull(),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: text('updated_at').notNull()
@@ -47,7 +83,7 @@ export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 export const evidence = sqliteTable('evidence', {
   id: text('id').primaryKey(),
-  entryId: text('entry_id').notNull().references(() => accountingEntries.id),
+  entryId: text('entry_id').notNull().references(() => ledgerItems.id),
   kind: text('kind').$type<EvidenceKind>().notNull(),
   reference: text('reference'),
   payoutRowId: text('payout_row_id').references(() => payoutRows.id),
@@ -69,7 +105,7 @@ export const runs = sqliteTable('runs', {
 
 export const recommendations = sqliteTable('recommendations', {
   id: text('id').primaryKey(),
-  entryId: text('entry_id').notNull().references(() => accountingEntries.id),
+  entryId: text('entry_id').notNull().references(() => ledgerItems.id),
   runId: text('run_id').references(() => runs.id),
   primaryValueId: text('primary_value_id').references(() => dimensionValues.id),
   action: text('action').$type<'code' | 'ask'>().notNull(),
@@ -104,7 +140,7 @@ export const decisions = sqliteTable('decisions', {
 
 export const questions = sqliteTable('questions', {
   id: text('id').primaryKey(),
-  entryId: text('entry_id').notNull().references(() => accountingEntries.id),
+  entryId: text('entry_id').notNull().references(() => ledgerItems.id),
   text: text('text').notNull(),
   bestGuess: text('best_guess'),
   answer: text('answer'),
@@ -115,6 +151,8 @@ export const questions = sqliteTable('questions', {
 
 export const mappingProposals = sqliteTable('mapping_proposals', {
   id: text('id').primaryKey(),
+  connectionId: text('connection_id').notNull().references(() => ledgerConnections.id),
+  target: text('target').$type<'ledger' | 'local'>().notNull().default('ledger'),
   sourceType: text('source_type').$type<'merchant' | 'merchant_category'>().notNull(),
   sourceId: text('source_id').notNull(),
   sourceLabel: text('source_label').notNull(),
@@ -124,7 +162,18 @@ export const mappingProposals = sqliteTable('mapping_proposals', {
   status: text('status').$type<'proposed' | 'applied' | 'dismissed'>().notNull(),
   createdAt: text('created_at').notNull(),
   appliedAt: text('applied_at')
-}, (t) => [uniqueIndex('mapping_source_idx').on(t.sourceType, t.sourceId, t.dimension)]);
+}, (t) => [uniqueIndex('mapping_source_idx').on(t.connectionId, t.sourceType, t.sourceId, t.dimension)]);
+
+/** In-app rules for ledgers without native mappings (Mercury). Checked by the recommend precode rule. */
+export const localMappings = sqliteTable('local_mappings', {
+  id: text('id').primaryKey(),
+  connectionId: text('connection_id').notNull().references(() => ledgerConnections.id),
+  proposalId: text('proposal_id').references(() => mappingProposals.id),
+  sourceId: text('source_id').notNull(), // merchant id or normalized counterparty
+  valueId: text('value_id').notNull().references(() => dimensionValues.id),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull()
+}, (t) => [uniqueIndex('local_map_idx').on(t.connectionId, t.sourceId)]);
 
 export const payoutRows = sqliteTable('payout_rows', {
   id: text('id').primaryKey(), // `${channel}:${payoutId}`

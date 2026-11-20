@@ -8,7 +8,10 @@ import { AppError, newId, nowIso, sha256, stableJson } from '../util';
 import { costUsd, type Usage } from '../ai/pricing';
 import { ModelUnavailableError, type ModelResult } from '../ai/model';
 import { buildRecommendSystem, PROMPT_VERSION, RECOMMEND_JSON_SCHEMA } from '../prompts/recommend.v1';
-import { classifyTxKind, type TxKind } from './rules';
+import { type TxKind } from './rules';
+import { txKindOf } from './research';
+import { chartSourceOf } from '../ledgers/registry';
+import type { LedgerItem } from '../ledgers/types';
 import { validateRecommendation, type RecOutput } from './validate';
 import { enabledAccounts } from './coa';
 import { withRun } from './runs';
@@ -73,7 +76,7 @@ export async function recommendForInput(input: RecInput, ctx: RecContext): Promi
   if (ctx.precodedValueId && enabled.has(ctx.precodedValueId)) {
     const name = ctx.accounts.find((a) => a.id === ctx.precodedValueId)!.name;
     return ruleResult({ action: 'code', lines: [{ valueId: ctx.precodedValueId, amountCents: input.transaction.amountCents }], memo: `${input.transaction.merchantName ?? input.transaction.description}`.slice(0, 200),
-      confidence: 0.99, reasoning: `Slash coded this to ${name} through a learned mapping rule.`, question: null }, 'rules:mapping');
+      confidence: 0.99, reasoning: `This merchant is coded to ${name} by a learned mapping rule.`, question: null }, 'rules:mapping');
   }
   // rule: never code own transfers / person payments without an owner answer (Tier 0, defense in depth).
   if (!hasOwnerAnswer && (input.transaction.kind === 'own_transfer' || input.transaction.kind === 'p2p')) {
@@ -127,21 +130,26 @@ function safeJson(t: string): unknown {
 /** Builds the volatile input for an entry from DB state. */
 export function buildInputForEntry(entryId: string): { input: RecInput; ctx: RecContext } {
   const db = getDb();
-  const e = db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, entryId)).get();
-  const t = db.select().from(schema.slashTransactions).where(eq(schema.slashTransactions.accountingEntryId, entryId)).get();
+  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get();
+  const t = db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, entryId)).get();
   if (!e || !t) throw new AppError('not_found', `entry ${entryId} not found`, 404);
   const ev = db.select().from(schema.evidence).where(eq(schema.evidence.entryId, entryId)).orderBy(schema.evidence.createdAt).all();
-  const raw = JSON.parse(e.rawJson) as { dimensions?: Record<string, string>; codedBy?: string };
+  const item = JSON.parse(e.rawJson) as LedgerItem;
+  const source = chartSourceOf(e.connectionId);
+  // Precoded = the ledger applied a native mapping (Slash), or one of our local rules matches (Mercury).
+  const ledgerMapped = item.codedBy === 'mapping' ? item.coding?.[0]?.valueId ?? null : null;
+  const local = t.merchantId ? db.select().from(schema.localMappings)
+    .where(and(eq(schema.localMappings.connectionId, e.connectionId), eq(schema.localMappings.sourceId, t.merchantId))).get() : undefined;
   return {
     input: {
-      transaction: { description: t.description, amountCents: e.amountCents, date: t.date, mcc: t.mcc, merchantName: t.merchantName, kind: classifyTxKind(t.description, !!t.merchantId) },
+      transaction: { description: t.description, amountCents: e.amountCents, date: t.date, mcc: t.mcc, merchantName: t.merchantName, kind: txKindOf(t) },
       evidence: ev.filter((x) => x.kind !== 'owner_answer').map((x) => ({ id: x.id, kind: x.kind, summary: x.summary })),
       ownerAnswers: ev.filter((x) => x.kind === 'owner_answer').map((x) => x.summary)
     },
     ctx: {
-      accounts: enabledAccounts().map((a) => ({ id: a.id, name: a.name })),
+      accounts: enabledAccounts(source).map((a) => ({ id: a.id, name: a.name })),
       payoutMatched: ev.some((x) => x.kind === 'payout_row'),
-      precodedValueId: raw.codedBy === 'mapping' ? raw.dimensions?.account ?? null : null
+      precodedValueId: ledgerMapped ?? local?.valueId ?? null
     }
   };
 }
@@ -162,8 +170,8 @@ export async function recommendEntry(entryId: string, opts: { force?: boolean } 
       result = await recommendForInput(input, ctx);
     } catch (e) {
       const err = e as AppError;
-      db.update(schema.accountingEntries).set({ localState: 'invalid', stateReason: `${(err.source ?? 'app').toUpperCase()}: ${err.code === 'model_unavailable' ? 'Model unavailable, retry' : err.message}`, updatedAt: nowIso() })
-        .where(eq(schema.accountingEntries.id, entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'invalid', stateReason: `${(err.source ?? 'app').toUpperCase()}: ${err.code === 'model_unavailable' ? 'Model unavailable, retry' : err.message}`, updatedAt: nowIso() })
+        .where(eq(schema.ledgerItems.id, entryId)).run();
       throw e;
     }
     const rec = {
@@ -183,8 +191,8 @@ export async function recommendEntry(entryId: string, opts: { force?: boolean } 
 
 function setStateFromRec(entryId: string, errors: string[]) {
   // On success keep research's partial-source notes (e.g. "QuickBooks unavailable") as the reason.
-  getDb().update(schema.accountingEntries).set(errors.length
+  getDb().update(schema.ledgerItems).set(errors.length
     ? { localState: 'invalid', stateReason: `Invalid: ${errors.join('; ')}`, updatedAt: nowIso() }
     : { localState: 'recommended', updatedAt: nowIso() }
-  ).where(and(eq(schema.accountingEntries.id, entryId))).run();
+  ).where(and(eq(schema.ledgerItems.id, entryId))).run();
 }

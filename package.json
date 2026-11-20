@@ -19,7 +19,8 @@
     "arch": "tsx scripts/gen-arch.ts",
     "arch:check": "tsx scripts/gen-arch.ts --check",
     "diagrams:check": "node scripts/check-diagrams.mjs",
-    "test:e2e": "playwright test --trace off"
+    "test:e2e": "playwright test --trace off",
+    "db:reset": "node -e \"for (const f of ['data/books.db','data/books.db-wal','data/books.db-shm']) { try { require('fs').unlinkSync(f) } catch {} }\" && pnpm db:migrate"
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^12.2.0",

@@ -10,8 +10,8 @@ import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { Component, ComponentDetail, SystemGraph } from '$lib/types';
 
 type Step = { kind: 'rule' | 'judgment' | 'human'; does: string; tier?: string; evals?: string[] };
-export interface ProcessDef { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number }; toggle: boolean; whenOff?: string }
-export interface ToolDef { target: string; port: string; ops: string[]; usedBy: string[]; toggle: boolean; whenOff?: string }
+export interface ProcessDef { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number }; toggle: boolean; whenOff?: string; default?: boolean }
+export interface ToolDef { target: string; port: string; ops: string[]; usedBy: string[]; toggle: boolean; whenOff?: string; default?: boolean }
 export interface Registry {
   processes: Record<string, ProcessDef>;
   tools: Record<string, ToolDef>;
@@ -37,13 +37,13 @@ export function kindOf(id: string): Component['kind'] {
 
 const layerOf = (id: string, kind: Component['kind']) => (kind === 'tool' ? 'TOOLS' : id.split('.')[0]) as Component['layer'];
 
-/** Absent row = enabled. Components with toggle: false are always enabled. */
+/** Absent row = the component's default (true unless `default: false`). toggle: false = always enabled. */
 export function isEnabled(id: string): boolean {
   const r = registry();
   const def = r.processes[id] ?? r.tools[id];
   if (!def?.toggle) return true;
   const row = getDb().select().from(schema.componentStates).where(eq(schema.componentStates.componentId, id)).get();
-  return row ? row.enabled : true;
+  return row ? row.enabled : def.default !== false;
 }
 
 export function setComponentState(id: string, enabled: boolean, by: string): Component {
@@ -87,7 +87,8 @@ function metrics(): Map<string, Metrics> {
   return out;
 }
 
-const SOURCE_BY_TARGET: Record<string, string> = { 'Slash API': 'slash', 'QuickBooks API': 'qbo', Anthropic: 'model', Ollama: 'model' };
+const LEDGER_TARGETS: Record<string, string> = { 'Slash API': 'slash', 'Mercury API': 'mercury' };
+const SOURCE_BY_TARGET: Record<string, string> = { 'Slash API': 'slash', 'QuickBooks API': 'qbo', Anthropic: 'model', Ollama: 'model', 'Mercury API': 'app' };
 
 export function listComponents(kind?: Component['kind']): Component[] {
   const r = registry();
@@ -103,7 +104,7 @@ export function listComponents(kind?: Component['kind']): Component[] {
   const procs: Component[] = Object.entries(r.processes).map(([id, p]) => {
     const k = kindOf(id);
     const st = states.get(id);
-    const enabled = p.toggle ? (st?.enabled ?? true) : true;
+    const enabled = p.toggle ? (st?.enabled ?? p.default !== false) : true;
     const m = mets.get(id) ?? zero;
     const judgment = p.steps.find((s) => s.kind === 'judgment');
     const evalCases = judgment?.evals ?? [];
@@ -121,7 +122,7 @@ export function listComponents(kind?: Component['kind']): Component[] {
 
   const tools: Component[] = Object.entries(r.tools).map(([id, t]) => {
     const st = states.get(id);
-    const enabled = t.toggle ? (st?.enabled ?? true) : true;
+    const enabled = t.toggle ? (st?.enabled ?? t.default !== false) : true;
     // Tool health = runs of the processes that use it; failures counted only when the upstream was this tool's target.
     const src = SOURCE_BY_TARGET[t.target];
     let calls = 0, failures = 0, lastRunAt: string | null = null;
@@ -155,10 +156,21 @@ export function systemGraph(): SystemGraph {
   const comps = listComponents();
   const tables = (Object.values(schema) as unknown[]).filter((v): v is SQLiteTable => v instanceof SQLiteTable).map((t) => getTableConfig(t).name);
   const targets = [...new Set(Object.values(r.tools).map((t) => t.target))];
+  // Ledger APIs fan out to one node per connection, so several Slash/Mercury ledgers show separately.
+  const conns = getDb().select().from(schema.ledgerConnections).all();
+  const connNodes = (target: string) => {
+    const kind = LEDGER_TARGETS[target];
+    return kind ? conns.filter((c) => c.kind === kind) : [];
+  };
   const nodes: SystemGraph['nodes'] = [
     ...comps.map((c) => ({ id: c.id, label: c.label, kind: c.kind, layer: c.layer, status: c.status, toggle: c.toggle })),
     ...tables.map((t) => ({ id: `table:${t}`, label: t, kind: 'table' as const, layer: 'BE' as const, status: 'active' as const, toggle: false })),
-    ...targets.map((t) => ({ id: `ext:${t}`, label: t, kind: 'external' as const, layer: 'EXT' as const, status: 'active' as const, toggle: false }))
+    ...targets.flatMap((t): SystemGraph['nodes'] => {
+      const cs = connNodes(t);
+      if (!LEDGER_TARGETS[t] || !cs.length) return [{ id: `ext:${t}`, label: LEDGER_TARGETS[t] ? `${t} (not connected)` : t, kind: 'external' as const, layer: 'EXT' as const, status: LEDGER_TARGETS[t] ? 'idle' : 'active', toggle: false }];
+      return cs.map((c) => ({ id: `conn:${c.id}`, label: `${c.name} · ${c.kind} · ${c.mode}`, kind: 'external' as const, layer: 'EXT' as const,
+        status: c.status !== 'active' ? 'off' : c.lastError ? 'degraded' : 'active', toggle: false }));
+    })
   ];
   const edges = new Map<string, SystemGraph['edges'][number]>();
   const add = (source: string, target: string, kind: SystemGraph['edges'][number]['kind']) => {
@@ -169,19 +181,21 @@ export function systemGraph(): SystemGraph {
   for (const [id, p] of Object.entries(r.processes)) for (const w of p.writes) add(id, `table:${w}`, 'writes');
   for (const [id, t] of Object.entries(r.tools)) {
     for (const p of t.usedBy) add(p, id, 'uses');
-    add(id, `ext:${t.target}`, 'calls');
+    const cs = connNodes(t.target);
+    if (LEDGER_TARGETS[t.target] && cs.length) for (const c of cs) add(id, `conn:${c.id}`, 'calls');
+    else add(id, `ext:${t.target}`, 'calls');
   }
   return { nodes, edges: [...edges.values()] };
 }
 
 /** Entry-state machine with live counts; transitions name the process that causes them. */
 export const ENTRY_TRANSITIONS: [string, string, string][] = [
-  ['start', 'fetched', 'MW.entries.pull'], ['fetched', 'researched', 'MW.entry.research'],
+  ['start', 'fetched', 'MW.ledger.pull'], ['fetched', 'researched', 'MW.entry.research'],
   ['researched', 'recommended', 'AI.entry.recommend'], ['researched', 'invalid', 'AI.entry.recommend'], ['invalid', 'recommended', 'AI.entry.recommend'],
-  ['recommended', 'fetched', 'MW.entries.pull'], ['recommended', 'asked', 'FE.entry.ask'], ['asked', 'researched', 'FE.question.answer'],
+  ['recommended', 'fetched', 'MW.ledger.pull'], ['recommended', 'asked', 'FE.entry.ask'], ['asked', 'researched', 'FE.question.answer'],
   ['recommended', 'approved', 'FE.entry.approve'], ['invalid', 'approved', 'FE.entry.approve'], ['approved', 'recommended', 'FE.entry.undo'],
-  ['approved', 'coded', 'MW.entry.code'], ['approved', 'recommended', 'MW.entry.code'], ['coded', 'ready', 'MW.entry.ready'],
-  ['ready', 'synced', 'MW.entries.pull'], ['recommended', 'rejected', 'FE.entry.reject'], ['asked', 'rejected', 'FE.entry.reject']
+  ['approved', 'coded', 'MW.ledger.code'], ['approved', 'recommended', 'MW.ledger.code'], ['coded', 'ready', 'MW.ledger.ready'],
+  ['ready', 'synced', 'MW.ledger.pull'], ['recommended', 'rejected', 'FE.entry.reject'], ['asked', 'rejected', 'FE.entry.reject']
 ];
 
 export function componentDetail(id: string): ComponentDetail {
@@ -190,7 +204,7 @@ export function componentDetail(id: string): ComponentDetail {
   if (!c) throw new AppError('not_found', `component ${id} not found`, 404);
   const db = getDb();
   const counts: Record<string, number> = {};
-  for (const e of db.select({ s: schema.accountingEntries.localState }).from(schema.accountingEntries).all()) counts[e.s] = (counts[e.s] ?? 0) + 1;
+  for (const e of db.select({ s: schema.ledgerItems.localState }).from(schema.ledgerItems).all()) counts[e.s] = (counts[e.s] ?? 0) + 1;
   const runs = db.select().from(schema.runs).where(eq(schema.runs.processId, id)).all()
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 20)
     .map((x) => ({ id: x.id, subjectId: x.subjectId, startedAt: x.startedAt, status: x.status, error: x.error, e2eMs: x.detailJson ? (JSON.parse(x.detailJson).e2e_ms ?? null) : null }));

@@ -1,71 +1,35 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "33c56b28-1fee-49c4-a1a4-5dde7302569f",
+  "id": "110df655-4b3c-4731-ab93-d74bc140a8d1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "accounting_entries": {
-      "name": "accounting_entries",
+    "component_states": {
+      "name": "component_states",
       "columns": {
-        "id": {
-          "name": "id",
+        "component_id": {
+          "name": "component_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
-        "slash_status": {
-          "name": "slash_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "local_state": {
-          "name": "local_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'fetched'"
-        },
-        "amount_cents": {
-          "name": "amount_cents",
+        "enabled": {
+          "name": "enabled",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "memo": {
-          "name": "memo",
+        "config_json": {
+          "name": "config_json",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "state_reason": {
-          "name": "state_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "pending_until": {
-          "name": "pending_until",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "raw_json": {
-          "name": "raw_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
+        "updated_by": {
+          "name": "updated_by",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -79,16 +43,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "entries_state_idx": {
-          "name": "entries_state_idx",
-          "columns": [
-            "local_state",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -191,6 +146,21 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'slash'"
+        },
+        "qbo_account_id": {
+          "name": "qbo_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "name": {
@@ -330,10 +300,10 @@
         }
       },
       "foreignKeys": {
-        "evidence_entry_id_accounting_entries_id_fk": {
-          "name": "evidence_entry_id_accounting_entries_id_fk",
+        "evidence_entry_id_ledger_items_id_fk": {
+          "name": "evidence_entry_id_ledger_items_id_fk",
           "tableFrom": "evidence",
-          "tableTo": "accounting_entries",
+          "tableTo": "ledger_items",
           "columnsFrom": [
             "entry_id"
           ],
@@ -361,6 +331,507 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "ledger_connections": {
+      "name": "ledger_connections",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "config_json": {
+          "name": "config_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "credentials_enc": {
+          "name": "credentials_enc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "capabilities_json": {
+          "name": "capabilities_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bank_feed_confirmed_by": {
+          "name": "bank_feed_confirmed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bank_feed_confirmed_at": {
+          "name": "bank_feed_confirmed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_pull_at": {
+          "name": "last_pull_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ledger_items": {
+      "name": "ledger_items",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "qbo_txn_id": {
+          "name": "qbo_txn_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "qbo_txn_type": {
+          "name": "qbo_txn_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ledger_status": {
+          "name": "ledger_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "local_state": {
+          "name": "local_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'fetched'"
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "state_reason": {
+          "name": "state_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pending_until": {
+          "name": "pending_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "raw_json": {
+          "name": "raw_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "entries_state_idx": {
+          "name": "entries_state_idx",
+          "columns": [
+            "local_state",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "entries_conn_idx": {
+          "name": "entries_conn_idx",
+          "columns": [
+            "connection_id",
+            "local_state"
+          ],
+          "isUnique": false
+        },
+        "entries_ext_idx": {
+          "name": "entries_ext_idx",
+          "columns": [
+            "connection_id",
+            "external_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "ledger_items_connection_id_ledger_connections_id_fk": {
+          "name": "ledger_items_connection_id_ledger_connections_id_fk",
+          "tableFrom": "ledger_items",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ledger_transactions": {
+      "name": "ledger_transactions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind_hint": {
+          "name": "kind_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "merchant_name": {
+          "name": "merchant_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mcc": {
+          "name": "mcc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "raw_json": {
+          "name": "raw_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tx_entry_idx": {
+          "name": "tx_entry_idx",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        },
+        "tx_merchant_idx": {
+          "name": "tx_merchant_idx",
+          "columns": [
+            "merchant_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ledger_transactions_item_id_ledger_items_id_fk": {
+          "name": "ledger_transactions_item_id_ledger_items_id_fk",
+          "tableFrom": "ledger_transactions",
+          "tableTo": "ledger_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ledger_transactions_connection_id_ledger_connections_id_fk": {
+          "name": "ledger_transactions_connection_id_ledger_connections_id_fk",
+          "tableFrom": "ledger_transactions",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "local_mappings": {
+      "name": "local_mappings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "proposal_id": {
+          "name": "proposal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value_id": {
+          "name": "value_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "local_map_idx": {
+          "name": "local_map_idx",
+          "columns": [
+            "connection_id",
+            "source_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "local_mappings_connection_id_ledger_connections_id_fk": {
+          "name": "local_mappings_connection_id_ledger_connections_id_fk",
+          "tableFrom": "local_mappings",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "local_mappings_proposal_id_mapping_proposals_id_fk": {
+          "name": "local_mappings_proposal_id_mapping_proposals_id_fk",
+          "tableFrom": "local_mappings",
+          "tableTo": "mapping_proposals",
+          "columnsFrom": [
+            "proposal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "local_mappings_value_id_dimension_values_id_fk": {
+          "name": "local_mappings_value_id_dimension_values_id_fk",
+          "tableFrom": "local_mappings",
+          "tableTo": "dimension_values",
+          "columnsFrom": [
+            "value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "mapping_proposals": {
       "name": "mapping_proposals",
       "columns": {
@@ -370,6 +841,21 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target": {
+          "name": "target",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ledger'"
         },
         "source_type": {
           "name": "source_type",
@@ -439,6 +925,7 @@
         "mapping_source_idx": {
           "name": "mapping_source_idx",
           "columns": [
+            "connection_id",
             "source_type",
             "source_id",
             "dimension"
@@ -447,6 +934,19 @@
         }
       },
       "foreignKeys": {
+        "mapping_proposals_connection_id_ledger_connections_id_fk": {
+          "name": "mapping_proposals_connection_id_ledger_connections_id_fk",
+          "tableFrom": "mapping_proposals",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "mapping_proposals_value_id_dimension_values_id_fk": {
           "name": "mapping_proposals_value_id_dimension_values_id_fk",
           "tableFrom": "mapping_proposals",
@@ -638,10 +1138,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "questions_entry_id_accounting_entries_id_fk": {
-          "name": "questions_entry_id_accounting_entries_id_fk",
+        "questions_entry_id_ledger_items_id_fk": {
+          "name": "questions_entry_id_ledger_items_id_fk",
           "tableFrom": "questions",
-          "tableTo": "accounting_entries",
+          "tableTo": "ledger_items",
           "columnsFrom": [
             "entry_id"
           ],
@@ -837,10 +1337,10 @@
         }
       },
       "foreignKeys": {
-        "recommendations_entry_id_accounting_entries_id_fk": {
-          "name": "recommendations_entry_id_accounting_entries_id_fk",
+        "recommendations_entry_id_ledger_items_id_fk": {
+          "name": "recommendations_entry_id_ledger_items_id_fk",
           "tableFrom": "recommendations",
-          "tableTo": "accounting_entries",
+          "tableTo": "ledger_items",
           "columnsFrom": [
             "entry_id"
           ],
@@ -965,115 +1465,6 @@
           "tableTo": "eval_cases",
           "columnsFrom": [
             "eval_case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "slash_transactions": {
-      "name": "slash_transactions",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "accounting_entry_id": {
-          "name": "accounting_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "date": {
-          "name": "date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "merchant_id": {
-          "name": "merchant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "merchant_name": {
-          "name": "merchant_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "mcc": {
-          "name": "mcc",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "category_id": {
-          "name": "category_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "amount_cents": {
-          "name": "amount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "raw_json": {
-          "name": "raw_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "tx_entry_idx": {
-          "name": "tx_entry_idx",
-          "columns": [
-            "accounting_entry_id"
-          ],
-          "isUnique": false
-        },
-        "tx_merchant_idx": {
-          "name": "tx_merchant_idx",
-          "columns": [
-            "merchant_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "slash_transactions_accounting_entry_id_accounting_entries_id_fk": {
-          "name": "slash_transactions_accounting_entry_id_accounting_entries_id_fk",
-          "tableFrom": "slash_transactions",
-          "tableTo": "accounting_entries",
-          "columnsFrom": [
-            "accounting_entry_id"
           ],
           "columnsTo": [
             "id"

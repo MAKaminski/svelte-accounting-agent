@@ -10,6 +10,7 @@
     { href: '/questions', label: 'Questions', count: data.counts.questions },
     { href: '/mappings', label: 'Rules', count: data.counts.rules },
     { href: '/evals', label: 'Evals' },
+    { href: '/ledgers', label: 'Ledgers' },
     { href: '/system', label: 'System' },
     { href: '/settings', label: 'Settings' }
   ]);

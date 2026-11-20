@@ -4,11 +4,13 @@ const entry = async (request: import('@playwright/test').APIRequestContext, id: 
 
 test.describe.configure({ mode: 'serial' });
 
-test('queue shows recommendations with every row actionable', async ({ page }) => {
+test('queue shows recommendations with every row actionable', async ({ page, request }) => {
+  const expected = (await (await request.get('/api/entries?state=recommended')).json()).length; // specs share one seeded DB
   await page.goto('/');
   await expect(page).toHaveURL(/\/queue/);
   await expect(page.getByRole('heading', { name: 'Review queue' })).toBeVisible();
-  await expect(page.locator('.row:not(.head)')).toHaveCount(23);
+  expect(expected).toBeGreaterThanOrEqual(30); // seeded: 23 Slash + 8 Mercury
+  await expect(page.locator('.row:not(.head)')).toHaveCount(expected);
   await expect(page.getByText('Split (3 lines)')).toBeVisible();
 });
 
@@ -23,7 +25,7 @@ test('approve → toast within 100 ms → committed to Slash after the undo wind
   await expect(row).toBeHidden();
   expect((await entry(request, id)).state).toBe('approved');
   await expect.poll(async () => (await entry(request, id)).state, { timeout: 8000 }).toBe('ready');
-  expect((await entry(request, id)).slashStatus).toBe('ready_to_sync');
+  expect((await entry(request, id)).ledgerStatus).toBe('ready');
 });
 
 test('undo inside the window → back in review, never sent', async ({ page, request }) => {
@@ -36,7 +38,7 @@ test('undo inside the window → back in review, never sent', async ({ page, req
   await page.waitForTimeout(2500);
   const e = await entry(request, id);
   expect(e.state).toBe('recommended');
-  expect(e.slashStatus).toBe('in_review');
+  expect(e.ledgerStatus).toBe('in_review');
   expect(e.decisions.map((d: { action: string }) => d.action)).toEqual(['approved', 'undone']);
 });
 

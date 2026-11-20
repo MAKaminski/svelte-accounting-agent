@@ -1,12 +1,12 @@
 # LaceLuxx Books
 
 ```bash
-pnpm i && pnpm db:migrate && pnpm db:seed && pnpm dev
+pnpm i && pnpm db:reset && pnpm db:seed && pnpm dev
 ```
 
 Open http://localhost:5173 (lands on `/queue`); `/system` shows every agent, process and tool with on/off switches. CLI: `pnpm books --help`.
 
-An accounting agent for LaceLuxx. It codes Slash bank and card transactions to QuickBooks accounts, explains why, asks the owner when it isn't sure, and learns rules so the same question isn't asked twice. A person approves every coding; Slash's own QuickBooks sync posts it. The app never writes to QuickBooks.
+An accounting agent for LaceLuxx. It codes bank and card transactions from connected ledgers (Slash, Mercury) to QuickBooks accounts, explains why, asks the owner when it isn't sure, and learns rules so the same question isn't asked twice. A person approves every coding. Slash items post through Slash's own QuickBooks sync; Mercury items are written to QuickBooks directly, after a duplicate check (Mercury's API can't code for QuickBooks).
 
 Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and model data), so the UI, CLI, tests and evals work with no keys.
 
@@ -15,8 +15,9 @@ Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and mode
 1. `cp .env.example .env` and set `APP_PASSCODE`, `TOKEN_ENC_KEY` (`openssl rand -base64 32`).
 2. Slash: create an API key with the narrowest permissions (Slash dashboard → Settings → Developer), set `SLASH_API_KEY`, `SLASH_LEGAL_ENTITY_ID`, `SLASH_MODE=live`. Run `pnpm books coa pull` then `pnpm books entries pull --dry-run`.
 3. Models: set `ANTHROPIC_API_KEY` (https://console.anthropic.com/settings/keys), `MODEL_MODE=live`, then `pnpm books evals run`.
-4. QuickBooks (read-only): create an Intuit app (https://developer.intuit.com/app/developer/dashboard), set `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_MODE=live`, then Settings → Connect QuickBooks.
-5. Optional: `PULL_INTERVAL_MIN=60` for hourly pulls; `OLLAMA_URL` to identify unknown merchants locally.
+4. Mercury: `/ledgers` → Add connection (or `printf %s "$TOKEN" | pnpm books ledger add --kind mercury --name Mercury --mode live --token-stdin`) with a read-only token from https://app.mercury.com/settings/tokens. Turn off Mercury's own QuickBooks sync for these accounts, map each account to its QuickBooks bank account, confirm, then activate.
+5. QuickBooks: create an Intuit app (https://developer.intuit.com/app/developer/dashboard), set `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_MODE=live`, then Settings → Connect QuickBooks.
+6. Optional: `PULL_INTERVAL_MIN=60` for hourly pulls; `OLLAMA_URL` to identify unknown merchants locally.
 
 ## Commands
 

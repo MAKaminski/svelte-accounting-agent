@@ -44,7 +44,7 @@ export type Recommendation = z.infer<typeof RecommendationSchema>;
 
 export const EntrySchema = z.object({
   id: z.string(),
-  slashStatus: z.string(),
+  ledgerStatus: z.string(),
   state: LocalStateSchema,
   stateReason: z.string().nullable(),
   amountCents: z.number().int(),
@@ -55,6 +55,12 @@ export const EntrySchema = z.object({
   merchantName: z.string().nullable(),
   mcc: z.string().nullable(),
   pendingUntil: z.string().nullable(),
+  connectionId: z.string(),
+  ledgerName: z.string(),
+  ledgerKind: z.string(),
+  chart: z.enum(['slash', 'qbo']),
+  writesTo: z.string(),
+  qboTxnId: z.string().nullable(),
   openQuestionId: z.string().nullable(),
   recommendation: RecommendationSchema.nullable()
 });
@@ -102,6 +108,8 @@ export type Question = z.infer<typeof QuestionSchema>;
 
 export const MappingProposalSchema = z.object({
   id: z.string(),
+  connectionId: z.string(),
+  target: z.enum(['ledger', 'local']),
   sourceType: z.string(),
   sourceId: z.string(),
   sourceLabel: z.string(),
@@ -151,7 +159,7 @@ export const EvalSummarySchema = z.object({
 
 export const PayoutImportSchema = z.object({ imported: z.number(), channel: z.string(), errors: z.array(z.string()) });
 
-export const AccountSchema = z.object({ id: z.string(), name: z.string(), enabled: z.boolean() });
+export const AccountSchema = z.object({ id: z.string(), name: z.string(), enabled: z.boolean(), source: z.enum(['slash', 'qbo']).optional() });
 export const CoaPullSchema = z.object({ accounts: z.array(AccountSchema), dryRun: z.boolean() });
 
 export const SettingsSchema = z.object({
@@ -224,3 +232,23 @@ export const SystemGraphSchema = z.object({
   edges: z.array(z.object({ id: z.string(), source: z.string(), target: z.string(), kind: z.enum(['flow', 'writes', 'uses', 'calls']) }))
 });
 export type SystemGraph = z.infer<typeof SystemGraphSchema>;
+
+// ---- Ledgers ----
+export const CapabilitiesSchema = z.object({
+  reviewUnit: z.enum(['accounting_entry', 'transaction']), chart: z.enum(['ledger', 'qbo']), code: z.enum(['ledger', 'qbo_direct']),
+  markReady: z.boolean(), mappings: z.enum(['ledger', 'local']), annotate: z.boolean()
+});
+export const LedgerConnectionSchema = z.object({
+  id: z.string(), kind: z.string(), name: z.string(), mode: z.enum(['fixture', 'live']), status: z.enum(['active', 'inactive']),
+  capabilities: CapabilitiesSchema,
+  config: z.object({ accountIds: z.array(z.string()).optional(), qboBankAccountIdByAccount: z.record(z.string(), z.string()).optional() }),
+  hasCredentials: z.boolean(), bankFeedConfirmedBy: z.string().nullable(), bankFeedConfirmedAt: z.string().nullable(),
+  lastPullAt: z.string().nullable(), lastError: z.string().nullable(), blockers: z.array(z.string()),
+  inReview: z.number(), total: z.number(), createdAt: z.string()
+});
+export type LedgerConnection = z.infer<typeof LedgerConnectionSchema>;
+export const LedgerDetailSchema = LedgerConnectionSchema.extend({
+  health: z.object({ ok: z.boolean(), message: z.string() }).nullable(),
+  ledgerAccounts: z.array(z.object({ id: z.string(), name: z.string() })),
+  qboBankAccounts: z.array(z.object({ id: z.string(), name: z.string() }))
+});

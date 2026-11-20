@@ -4,13 +4,13 @@ Read ARCHITECTURE.md first. The registries are the source of truth: `src/lib/com
 
 ## Rules for changes
 
-- **Slash is the only write path.** Never add QuickBooks writes or any Slash money-movement endpoint (transfers, cards, payments).
+- **The ledger's own sync is the write path when it has one** (Slash). QuickBooks is written only for connections with `capabilities.code = 'qbo_direct'` (Mercury), only after a human decision, only after dedupe, always with `requestid` = decision id, and only once the owner confirmed the bank-feed setting. Never add money-movement endpoints (transfers, cards, payments) for any ledger.
 - Nothing is marked ready in Slash without a recorded human decision. Auto-approval stays off (shadow mode) until ≥ 200 decisions and ≥ 98% shadow precision per account.
 - Never code a transfer between own accounts or a person payment without an owner answer (rule guard + validator).
 - Every Slash write carries an idempotency key and runs inside `withRun`.
 - New action = registry entry → route → screen. `pnpm arch:check` fails until they exist.
 - New process = card in `processes.yaml` (with `toggle` and, if switchable, `whenOff`) + a use-case trace; new external operation = a `tools:` entry. Both show up in `/system` automatically. A `judgment` step needs eval cases in `fixtures/evals/seed.json` first.
-- New external call = port + fixture first; live behind a `*_MODE` switch.
+- New external call = port + fixture first; live behind a `*_MODE` switch. New ledger = a `LedgerAdapter` in `src/lib/server/ledgers/` + `CAPABILITIES` entry; never branch on kind outside the adapter.
 - Money is integer cents; times are UTC ISO strings. Dates in files and commits are absolute (2026-11-19, not "today").
 - Secrets only in `.env` (never committed). QuickBooks tokens are encrypted with `TOKEN_ENC_KEY`.
 
@@ -23,6 +23,7 @@ Read ARCHITECTURE.md first. The registries are the source of truth: `src/lib/com
 | Approve / undo / ask | `pnpm vitest run tests/m3-write.test.ts` |
 | Mappings | `pnpm vitest run tests/m4-learn.test.ts` |
 | Control plane / switches | `pnpm vitest run tests/m6-control.test.ts` |
+| Ledger adapters / QuickBooks writes | `pnpm vitest run tests/m7-ledgers.test.ts` |
 | Prompt or model routing | `pnpm evals` (fixture) · `MODEL_MODE=live pnpm evals` (costs money) |
 | UI | `pnpm test:e2e` |
 | Docs | `pnpm arch:check && pnpm diagrams:check` |

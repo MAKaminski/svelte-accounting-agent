@@ -11,7 +11,7 @@ export function questionView(id: string): Question {
   const db = getDb();
   const q = db.select().from(schema.questions).where(eq(schema.questions.id, id)).get();
   if (!q) throw new AppError('not_found', `question ${id} not found`, 404);
-  const t = db.select().from(schema.slashTransactions).where(eq(schema.slashTransactions.accountingEntryId, q.entryId)).get();
+  const t = db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, q.entryId)).get();
   return { ...q, merchant: t?.merchantName ?? t?.description ?? null, amountCents: t?.amountCents ?? null };
 }
 
@@ -33,7 +33,7 @@ export async function answerQuestion(id: string, text: string, opts: { wait?: bo
     db.transaction(() => {
       db.update(schema.questions).set({ status: 'answered', answer: text.trim(), answeredAt: nowIso() }).where(eq(schema.questions.id, id)).run();
       db.insert(schema.evidence).values({ id: newId('ev'), entryId: q.entryId, kind: 'owner_answer', reference: id, summary: `Owner: "${text.trim()}" (asked: ${q.text})`, createdAt: nowIso() }).run();
-      db.update(schema.accountingEntries).set({ localState: 'researched', updatedAt: nowIso() }).where(eq(schema.accountingEntries.id, q.entryId)).run();
+      db.update(schema.ledgerItems).set({ localState: 'researched', updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, q.entryId)).run();
     });
     if (opts.wait) await researchAndRecommend(q.entryId);
     else enqueue(() => researchAndRecommend(q.entryId).then(() => undefined));

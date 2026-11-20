@@ -109,7 +109,11 @@ export class FixtureModel implements ModelPort {
     const key = normalizeMerchant(input.transaction.description);
     const amountKey = `${key}|${input.transaction.amountCents}`;
     const tbl = this.table[req.step];
-    const answer = tbl[amountKey] ?? tbl[key] ?? tbl['__default__'];
+    // QuickBooks-chart prompts (qbo_direct ledgers) get answers keyed "qbo|…" with qbo:<Id> valueIds.
+    const chart = req.system.includes('- qbo:') ? 'qbo|' : '';
+    const answer = chart
+      ? tbl[chart + amountKey] ?? tbl[chart + key] ?? tbl['qbo|__default__'] ?? tbl['__default__']
+      : tbl[amountKey] ?? tbl[key] ?? tbl['__default__'];
     // "$AMOUNT" in a fixture line means "the transaction amount" (single-line answers reused across amounts).
     const filled = JSON.parse(JSON.stringify(answer ?? {}).replaceAll('"$AMOUNT"', String(input.transaction.amountCents)));
     const text = this.invalidNext > 0 ? (this.invalidNext--, '{"action":"code"') : JSON.stringify(filled);

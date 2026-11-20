@@ -4,7 +4,7 @@ import { pullEntries } from '../src/lib/server/processes/pull';
 import { getDb, schema } from '../src/lib/server/db';
 import { eq } from 'drizzle-orm';
 
-describe('M1 · MW.coa.pull + MW.entries.pull', () => {
+describe('M1 · MW.coa.pull + MW.ledger.pull', () => {
   let ctx: ReturnType<typeof setup>;
   beforeEach(() => { ctx = setup(); });
 
@@ -13,7 +13,7 @@ describe('M1 · MW.coa.pull + MW.entries.pull', () => {
     expect(r1.pulled).toBe(23);
     expect(r1.newMerchants).toBe(4);
     const db = getDb();
-    const count = () => db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.slashStatus, 'in_review')).all().length;
+    const count = () => db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.ledgerStatus, 'in_review')).all().length;
     expect(count()).toBe(23);
     const recsBefore = db.select().from(schema.recommendations).all().length;
     const evBefore = db.select().from(schema.evidence).all().length;
@@ -34,7 +34,7 @@ describe('M1 · MW.coa.pull + MW.entries.pull', () => {
   it('dry run writes nothing', async () => {
     const r = await pullEntries({ dryRun: true });
     expect(r.pulled).toBe(23);
-    expect(getDb().select().from(schema.accountingEntries).all().length).toBe(0);
+    expect(getDb().select().from(schema.ledgerItems).all().length).toBe(0);
   });
 
   it('every pulled entry ends recommended or invalid (none stuck)', async () => {

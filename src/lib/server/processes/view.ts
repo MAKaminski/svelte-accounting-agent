@@ -26,29 +26,35 @@ export function latestRec(entryId: string) {
 export function listEntries(state?: string): Entry[] {
   const db = getDb();
   const rows = state
-    ? db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.localState, state as never)).all()
-    : db.select().from(schema.accountingEntries).where(inArray(schema.accountingEntries.slashStatus, ['in_review', 'ready_to_sync', 'pending_sync', 'syncing', 'failed'])).all();
+    ? db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.localState, state as never)).all()
+    : db.select().from(schema.ledgerItems).where(inArray(schema.ledgerItems.ledgerStatus, ['in_review', 'ready', 'syncing', 'failed'])).all();
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const txs = new Map(db.select().from(schema.slashTransactions).where(inArray(schema.slashTransactions.accountingEntryId, ids)).all().map((t) => [t.accountingEntryId, t]));
+  const txs = new Map(db.select().from(schema.ledgerTransactions).where(inArray(schema.ledgerTransactions.itemId, ids)).all().map((t) => [t.itemId, t]));
   const recs = new Map<string, typeof schema.recommendations.$inferSelect>();
   for (const r of db.select().from(schema.recommendations).where(inArray(schema.recommendations.entryId, ids)).orderBy(schema.recommendations.createdAt).all()) recs.set(r.entryId, r);
   const qs = new Map(db.select().from(schema.questions).where(and(inArray(schema.questions.entryId, ids), eq(schema.questions.status, 'open'))).all().map((q) => [q.entryId, q.id]));
   const names = accountNames();
+  const conns = new Map(db.select().from(schema.ledgerConnections).all().map((c) => [c.id, c]));
   return rows.map((e) => {
+    const c = conns.get(e.connectionId);
+    const direct = c ? (JSON.parse(c.capabilitiesJson) as { code: string }).code === 'qbo_direct' : false;
     const t = txs.get(e.id);
     const r = recs.get(e.id);
     return {
-      id: e.id, slashStatus: e.slashStatus, state: e.localState, stateReason: e.stateReason, amountCents: e.amountCents, memo: e.memo,
+      id: e.id, ledgerStatus: e.ledgerStatus, state: e.localState, stateReason: e.stateReason, amountCents: e.amountCents, memo: e.memo,
       date: t?.date ?? null, description: t?.description ?? null, merchantId: t?.merchantId ?? null, merchantName: t?.merchantName ?? null,
-      mcc: t?.mcc ?? null, pendingUntil: e.pendingUntil, openQuestionId: qs.get(e.id) ?? null, recommendation: r ? recView(r, names) : null
+      mcc: t?.mcc ?? null, pendingUntil: e.pendingUntil,
+      connectionId: e.connectionId, ledgerName: c?.name ?? e.connectionId, ledgerKind: c?.kind ?? 'slash', chart: (c && (JSON.parse(c.capabilitiesJson) as { chart: string }).chart === 'qbo' ? 'qbo' : 'slash') as 'qbo' | 'slash',
+      writesTo: direct ? `QuickBooks directly (${e.amountCents < 0 ? 'Purchase' : 'Deposit'})` : `${c?.name ?? 'Ledger'} → its QuickBooks sync`,
+      qboTxnId: e.qboTxnId, openQuestionId: qs.get(e.id) ?? null, recommendation: r ? recView(r, names) : null
     };
   }).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.id.localeCompare(a.id));
 }
 
 export function getEntry(id: string): EntryDetail | null {
   const db = getDb();
-  const e = db.select().from(schema.accountingEntries).where(eq(schema.accountingEntries.id, id)).get();
+  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, id)).get();
   if (!e) return null;
   const base = listEntriesById([id])[0];
   const evidence = db.select().from(schema.evidence).where(eq(schema.evidence.entryId, id)).orderBy(schema.evidence.createdAt).all()
@@ -64,6 +70,6 @@ export function getEntry(id: string): EntryDetail | null {
 function listEntriesById(ids: string[]): Entry[] {
   // Reuse listEntries' mapping for one row regardless of its state.
   const db = getDb();
-  const e = db.select().from(schema.accountingEntries).where(inArray(schema.accountingEntries.id, ids)).all();
+  const e = db.select().from(schema.ledgerItems).where(inArray(schema.ledgerItems.id, ids)).all();
   return e.length ? listEntries(e[0].localState).filter((x) => ids.includes(x.id)) : [];
 }

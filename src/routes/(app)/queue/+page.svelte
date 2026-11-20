@@ -17,8 +17,15 @@
   let pulling = $state(false);
   let pullError = $state<{ message: string; source: string } | null>(null);
 
-  const rows = $derived(data.all.filter((e) => e.state === data.state && !hidden.has(e.id)));
-  const counts = $derived(Object.fromEntries(filters.map((f) => [f.key, data.all.filter((e) => e.state === f.key).length])));
+  const ledgers = $derived([...new Map(data.all.map((e) => [e.connectionId, e.ledgerName])).entries()]);
+  const scoped = $derived(data.connection ? data.all.filter((e) => e.connectionId === data.connection) : data.all);
+  const rows = $derived(scoped.filter((e) => e.state === data.state && !hidden.has(e.id)));
+  const counts = $derived(Object.fromEntries(filters.map((f) => [f.key, scoped.filter((e) => e.state === f.key).length])));
+  const qs = (patch: Record<string, string | null>) => {
+    const p = new URLSearchParams({ state: data.state, ...(data.connection ? { connection: data.connection } : {}) });
+    for (const [k, v] of Object.entries(patch)) v === null ? p.delete(k) : p.set(k, v);
+    return `?${p}`;
+  };
   const invalidCount = $derived(counts.invalid ?? 0);
 
   $effect(() => { if (rows.length && !rows.some((r) => r.id === ui.selectedId)) ui.selectedId = rows[0].id; });
@@ -80,9 +87,15 @@
 
 <div class="chips" role="tablist" aria-label="Filter by state">
   {#each filters as f}
-    <a role="tab" aria-selected={data.state === f.key} class="chip" class:on={data.state === f.key} href="?state={f.key}" data-sveltekit-noscroll>{f.label} {counts[f.key] ?? 0}</a>
+    <a role="tab" aria-selected={data.state === f.key} class="chip" class:on={data.state === f.key} href={qs({ state: f.key })} data-sveltekit-noscroll>{f.label} {counts[f.key] ?? 0}</a>
   {/each}
 </div>
+{#if ledgers.length > 1}
+  <div class="chips" role="group" aria-label="Filter by ledger">
+    <a class="chip" class:on={!data.connection} href={qs({ connection: null })} data-sveltekit-noscroll>All ledgers</a>
+    {#each ledgers as [id, name]}<a class="chip" class:on={data.connection === id} href={qs({ connection: id })} data-sveltekit-noscroll>{name}</a>{/each}
+  </div>
+{/if}
 
 {#if pullError}<ErrorState message={pullError.message} source={pullError.source} onretry={pull} />{/if}
 
@@ -111,7 +124,7 @@
         tabindex="0" onfocus={() => (ui.selectedId = e.id)} onclick={() => (ui.selectedId = e.id)} ondblclick={() => goto(`/entry/${e.id}`)}
         onkeydown={(ev) => { if (ev.key === 'Enter' && ev.target === ev.currentTarget) { ev.stopPropagation(); goto(`/entry/${e.id}`); } }} aria-selected={ui.selectedId === e.id}>
         <span class="mono muted">{e.date}</span>
-        <a class="merchant" href="/entry/{e.id}">{e.merchantName ?? e.description}</a>
+        <span class="mcell"><a class="merchant" href="/entry/{e.id}">{e.merchantName ?? e.description}</a>{#if ledgers.length > 1}<span class="lbadge {e.ledgerKind}">{e.ledgerName}</span>{/if}</span>
         <span class="r mono" class:credit={e.amountCents > 0}>{money(e.amountCents)}</span>
         <span>{acct(e)}</span>
         <span class="mono {e.recommendation ? confClass(e.recommendation.confidence) : ''}">{e.recommendation?.confidence.toFixed(2) ?? ''}</span>
@@ -146,6 +159,9 @@
   .row.ask { background: var(--warn-soft); }
   .row.bad { background: var(--danger-soft); box-shadow: inset 3px 0 0 var(--danger); }
   .r { text-align: right; }
+  .mcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .lbadge { align-self: flex-start; padding: 0 6px; border-radius: 8px; font-size: 10px; font-weight: 600; background: #e0f2fe; color: #075985; }
+  .lbadge.mercury { background: #ede9fe; color: #5b21b6; }
   .merchant { font-weight: 500; color: var(--ink); text-decoration: none; }
   .merchant:hover { text-decoration: underline; }
   .credit { color: var(--ok); }

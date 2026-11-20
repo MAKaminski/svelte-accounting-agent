@@ -105,10 +105,10 @@ describe('M2 · research + recommend', () => {
 });
 
 describe('M2 · eval harness', () => {
-  it('seed cases pass 6/6 (fixture model)', async () => {
+  it('seed cases pass 9/9 (fixture model)', async () => {
     setup();
     const r = await runEvals();
     expect(r.cases.filter((c) => !c.pass)).toEqual([]);
-    expect(r.passed).toBe(6);
+    expect(r.passed).toBe(9);
   });
 });

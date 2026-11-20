@@ -5,22 +5,30 @@ processes:
   MW.coa.pull:
     trigger: "Daily scheduler, `books coa pull`, first pull"
     input: "Slash account dimension values (SlashDimensionValue[])"
-    steps: [ { kind: rule, does: "upsert account values with enabled flag" } ]
+    steps:
+      - kind: rule
+        does: "upsert account values per chart source: Slash dimension values ('slash'); QuickBooks accounts via MW.qbo.accounts ('qbo') when any connection codes qbo_direct"
     output: "dimension_values rows → CoaPull"
     writes: [ dimension_values ]
     fails: "2: Slash error (key missing, no account dimension, 5xx after retries)"
     accept: "tests/m1-pull.test.ts — 11 accounts, disabled flag kept"
     budget: { p95_ms: 2000, usd: 0 }
     toggle: false
-  MW.entries.pull:
-    trigger: "Hourly (PULL_INTERVAL_MIN), `books entries pull`, Pull button"
-    input: "{ since?: date, dryRun?: bool } + Slash entries (in_review, ready_to_sync, synced) + transactions"
+  MW.ledger.pull:
+    trigger: Hourly (PULL_INTERVAL_MIN), `books entries pull [--connection]`, Pull button
+    input: "{ since?, dryRun?, connectionId? } + per active connection: adapter.listItems + listHistory (normalized LedgerItem)"
     steps:
-      - { kind: rule, does: "list entries by status, fetch their transactions" }
-      - { kind: rule, does: "upsert; changed raw (e.g. mapping recode) → back to fetched; ready→synced" }
-      - { kind: rule, does: "queue research → recommend for new/changed entries" }
-    output: "PullResult; accounting_entries fetched, slash_transactions"
-    writes: [ accounting_entries, slash_transactions ]
+      - kind: rule
+        does: "for each active ledger connection: list items in review + history through its adapter"
+      - kind: rule
+        does: upsert by (connection, external id); changed raw (e.g. mapping recode) → back to fetched; ready→synced
+      - kind: rule
+        does: queue research → recommend for new/changed items; a failing connection is recorded, others continue
+    output: "PullResult; ledger_items fetched, ledger_transactions"
+    writes:
+      - ledger_items
+      - ledger_transactions
+      - ledger_connections
     fails: "2: Slash 429/5xx after 5 tries with jitter; run marked failed"
     accept: "tests/m1-pull.test.ts — 23 in → 23 rows, rerun idempotent"
     budget: { p95_ms: 10000, usd: 0 }
@@ -35,7 +43,7 @@ processes:
       - { kind: rule, does: "payout match: amount ± $0.01, date ± 3 days" }
       - { kind: rule, does: "no history + card merchant → AI.merchant.identify" }
     output: "evidence rows; state researched"
-    writes: [ evidence, accounting_entries ]
+    writes: [ evidence, ledger_items ]
     fails: "Partial: missing source noted in state_reason; continues"
     accept: "tests/m2-recommend.test.ts — USPS evidence kinds, QuickBooks-down partial"
     budget: { p95_ms: 1500, usd: 0 }
@@ -65,7 +73,7 @@ processes:
       - { kind: rule, does: "Zod; 1 retry; fallback to Sonnet once; then invalid" }
       - { kind: rule, does: "MW.entry.validate" }
     output: "recommendations row (tokens, cost, ttft, e2e); state recommended | invalid"
-    writes: [ recommendations, accounting_entries ]
+    writes: [ recommendations, ledger_items ]
     fails: "Model down after retry + fallback → invalid 'Model unavailable, retry'"
     accept: "6/6 seed eval cases; ≥ 95% shadow precision on first 100 decisions"
     budget: { p95_ms: 4000, usd: 0.0005 }
@@ -89,7 +97,7 @@ processes:
       - { kind: human, does: "decision recorded with who and when (approved | edited)" }
       - { kind: rule, does: "later: hold for the undo window (pending_until); else commit now" }
     output: "Decision; state approved"
-    writes: [ decisions, accounting_entries ]
+    writes: [ decisions, ledger_items ]
     fails: "1: open question, bad state, invalid lines"
     accept: "tests/m3-write.test.ts, tests/e2e/queue.spec.ts"
     budget: { p95_ms: 800, usd: 0 }
@@ -99,27 +107,31 @@ processes:
     input: "entry id inside its undo window"
     steps: [ { kind: human, does: "undone decision recorded; state back to recommended" } ]
     output: "Decision; state recommended"
-    writes: [ decisions, accounting_entries ]
+    writes: [ decisions, ledger_items ]
     fails: "1: window closed (already sending)"
     accept: "tests/m3-write.test.ts — no Slash write after undo"
     budget: { p95_ms: 300, usd: 0 }
     toggle: false
-  MW.entry.code:
+  MW.ledger.code:
     trigger: "Commit tick after the undo window, or approve without --later"
     input: "latest decision lines"
-    steps: [ { kind: rule, does: "PATCH /v2/accounting/entries/{id} (dimensions or lineItems), idempotency key = decision:code" } ]
+    steps:
+      - kind: rule
+        does: "capabilities.code = 'ledger': adapter.code (Slash PATCH entry: dimensions or lineItems), idempotency key = decision:code"
     output: "state coded"
-    writes: [ accounting_entries ]
+    writes: [ ledger_items ]
     fails: "409 sync in progress → retry in 60 s; 400 → recommended with error"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 1500, usd: 0 }
     toggle: false
-  MW.entry.ready:
-    trigger: "After MW.entry.code"
+  MW.ledger.ready:
+    trigger: "After MW.ledger.code"
     input: "entry id"
-    steps: [ { kind: rule, does: "POST mark-ready, idempotency key = decision:ready" } ]
+    steps:
+      - kind: rule
+        does: adapter.markReady (Slash mark-ready), idempotency key = decision:ready
     output: "state ready (Slash ready_to_sync)"
-    writes: [ accounting_entries ]
+    writes: [ ledger_items ]
     fails: "Error surfaced on the row; stays coded"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 1500, usd: 0 }
@@ -129,7 +141,7 @@ processes:
     input: "entry id, optional question text (defaults to the recommendation's)"
     steps: [ { kind: human, does: "question recorded; decision asked" } ]
     output: "Question; state asked"
-    writes: [ questions, decisions, accounting_entries ]
+    writes: [ questions, decisions, ledger_items ]
     fails: "1: already asked, bad state"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
@@ -139,7 +151,7 @@ processes:
     input: "entry id, optional reason"
     steps: [ { kind: human, does: "rejected decision recorded; coded by hand in Slash" } ]
     output: "Decision; state rejected"
-    writes: [ decisions, accounting_entries ]
+    writes: [ decisions, ledger_items ]
     fails: "1: no --yes, bad state"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
@@ -151,7 +163,7 @@ processes:
       - { kind: human, does: "answer recorded as evidence(owner_answer)" }
       - { kind: rule, does: "queue research → recommend" }
     output: "Question answered; state researched"
-    writes: [ questions, evidence, accounting_entries ]
+    writes: [ questions, evidence, ledger_items ]
     fails: "1: empty answer, already answered"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
@@ -159,7 +171,9 @@ processes:
   MW.mapping.propose:
     trigger: "After every approve or undo"
     input: "latest decision per entry for the merchant"
-    steps: [ { kind: rule, does: "≥ 3 approvals to the same single account, 0 conflicts → proposal; conflict → dismiss" } ]
+    steps:
+      - kind: rule
+        does: ≥ 3 approvals of a merchant to the same single account within one connection, 0 conflicts → proposal (target = ledger | local by capability); conflict → dismiss
     output: "mapping_proposals row"
     writes: [ mapping_proposals ]
     fails: "—"
@@ -171,10 +185,14 @@ processes:
     trigger: "Rules screen Apply + confirm, `books mapping apply <id> --yes`"
     input: "proposal id"
     steps:
-      - { kind: human, does: "confirm" }
-      - { kind: rule, does: "PUT /v2/accounting/mappings (applyToExistingEntries), then pull to refresh recoded entries" }
+      - kind: human
+        does: confirm
+      - kind: rule
+        does: "target 'ledger': adapter.upsertMapping (Slash PUT /v2/accounting/mappings) then pull; target 'local': local_mappings row, re-recommend waiting entries"
     output: "proposal applied"
-    writes: [ mapping_proposals ]
+    writes:
+      - mapping_proposals
+      - local_mappings
     fails: "1: no --yes; 2: Slash error"
     accept: "tests/m4-learn.test.ts — next USPS entry coded by rules:mapping, no model call"
     budget: { p95_ms: 1500, usd: 0 }
@@ -258,26 +276,153 @@ processes:
       p95_ms: 300
       usd: 0
     toggle: false
+  MW.qbo.write:
+    trigger: Commit after the undo window for a connection with capabilities.code = 'qbo_direct' (Mercury)
+    input: decision lines (qbo:<Id> values) + item + connection bank-account mapping
+    steps:
+      - kind: rule
+        does: map ledger account → QuickBooks bank account and qbo:<Id> → QuickBooks account
+      - kind: rule
+        does: "dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other LaceLuxx-written txns"
+      - kind: rule
+        does: uncategorized match → sparse-update its lines; same account → no write; other account → entry invalid; none → create with requestid = decision id
+    output: ledger_items ready + qbo_txn_id/qbo_txn_type, or invalid/recommended with a QUICKBOOKS reason
+    writes:
+      - ledger_items
+    fails: QuickBooks 4xx/5xx → stays approved, retry in 60 s; missing mapping → recommended with reason; conflicting match → invalid
+    accept: tests/m7-ledgers.test.ts — create once, idempotent rerun, uncategorized update, conflict → invalid, qbo.write off → held
+    budget:
+      p95_ms: 1500
+      usd: 0
+    toggle: false
+  MW.ledger.annotate:
+    trigger: After MW.qbo.write succeeds (optional)
+    input: entry + final account names
+    steps:
+      - kind: rule
+        does: 'adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by LaceLuxx Books: <account>"'
+    output: note on the ledger transaction
+    writes: []
+    fails: Failure noted on the entry; QuickBooks coding stands
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 1500
+      usd: 0
+    toggle: true
+    whenOff: No note is written back to the ledger (QuickBooks coding unaffected)
+  MW.qbo.accounts:
+    trigger: MW.coa.pull when any connection codes against QuickBooks
+    input: QuickBooks Account list
+    steps:
+      - kind: rule
+        does: expense/income/COGS/equity accounts become qbo:<Id> coding targets; bank and Uncategorized accounts disabled
+    output: dimension_values (source qbo)
+    writes:
+      - dimension_values
+    fails: "2: QuickBooks error"
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 2000
+      usd: 0
+    toggle: false
+  MW.ledger.test:
+    trigger: /ledgers Test, `books ledger test <id>`
+    input: connection id
+    steps:
+      - kind: rule
+        does: "adapter.health(): list accounts with the stored credentials"
+    output: LedgerDetail with health
+    writes: []
+    fails: health.ok = false with the adapter message
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 2000
+      usd: 0
+    toggle: false
+  FE.ledger.add:
+    trigger: /ledgers Add connection, `books ledger add`
+    input: "{ kind, name, mode, token?, config (account → QuickBooks bank mapping), bankFeedConfirmed }"
+    steps:
+      - kind: human
+        does: owner adds the connection and confirms the bank-feed setting (recorded with who and when); token stored AES-GCM encrypted
+    output: ledger_connections row (inactive)
+    writes:
+      - ledger_connections
+    fails: "1: bad kind, missing token for live"
+    accept: tests/m7-ledgers.test.ts, tests/e2e/ledgers.spec.ts
+    budget:
+      p95_ms: 300
+      usd: 0
+    toggle: false
+  FE.ledger.toggle:
+    trigger: /ledgers Activate/Deactivate, `books ledger enable|disable <id>`
+    input: connection id + active
+    steps:
+      - kind: rule
+        does: "activation blockers: qbo_direct needs bank-feed confirmation + bank mapping; live Mercury needs a token"
+      - kind: human
+        does: state change
+    output: connection status
+    writes:
+      - ledger_connections
+    fails: "1: blockers listed"
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 300
+      usd: 0
+    toggle: false
+  FE.ledgers.list:
+    trigger: /ledgers, `books ledgers list`, `books ledger show`
+    input: —
+    steps:
+      - kind: rule
+        does: connections with capabilities, blockers, counts (never credentials)
+    output: LedgerConnection[] / LedgerDetail
+    writes: []
+    fails: —
+    accept: e2e
+    budget:
+      p95_ms: 100
+      usd: 0
+    toggle: false
 
 interactions:
-  - { from: MW.entries.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
+  - { from: MW.ledger.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
   - { from: MW.coa.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/dimensions(+values)", timeout: "10 s; 5 tries" }
   - { from: MW.entry.research, to: "QuickBooks API", via: HTTPS, sync: sync, payload: "query Vendor, Purchase (24 h cache)", timeout: "10 s; 2 tries; continue without QuickBooks evidence" }
   - { from: AI.merchant.identify, to: "Ollama | Anthropic", via: HTTP, sync: sync, payload: "identify.v1", timeout: "20 s; Ollama → Haiku" }
   - { from: AI.entry.recommend, to: Anthropic, via: HTTPS, sync: sync, payload: "recommend.v1 (cached prefix)", timeout: "30 s; 1 retry; Sonnet once; else invalid" }
-  - { from: MW.entry.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
-  - { from: MW.entry.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
+  - { from: MW.ledger.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
+  - { from: MW.ledger.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
   - { from: FE.mapping.apply, to: "Slash API", via: HTTPS, sync: sync, payload: "PUT /v2/accounting/mappings", timeout: "10 s; idempotency key = proposal id" }
   - { from: MW.qbo.connect, to: "Intuit OAuth", via: HTTPS, sync: sync, payload: "token exchange", timeout: "10 s; no retry" }
+  - from: MW.ledger.pull
+    to: Mercury API
+    via: HTTPS
+    sync: sync
+    payload: GET /accounts, /transactions (cursor)
+    timeout: 10 s; 5 tries with jitter; connection lastError, others continue
+  - from: MW.qbo.write
+    to: QuickBooks API
+    via: HTTPS
+    sync: sync
+    payload: query Purchase/Deposit; POST purchase|deposit?requestid=decision
+    timeout: 10 s; on failure stays approved, retry in 60 s; requestid makes retries safe
+  - from: MW.ledger.annotate
+    to: Mercury API
+    via: HTTPS
+    sync: sync
+    payload: PATCH /transaction/{id} note
+    timeout: 10 s; failure noted, coding stands
 
 traces:
-  - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.coa.pull, MW.entries.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready, MW.mapping.propose ], end: ready }
-  - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.entries.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready ], end: ready }
-  - { name: "Owner question", actor: "Reviewer, owner", trigger: "Low confidence", processes: [ AI.entry.recommend, FE.entry.ask, FE.questions.list, FE.question.answer, MW.entry.research, AI.entry.recommend, FE.entry.approve, MW.entry.code, MW.entry.ready ], end: ready }
+  - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.coa.pull, MW.ledger.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready, MW.mapping.propose ], end: ready }
+  - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.ledger.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
+  - { name: "Owner question", actor: "Reviewer, owner", trigger: "Low confidence", processes: [ AI.entry.recommend, FE.entry.ask, FE.questions.list, FE.question.answer, MW.entry.research, AI.entry.recommend, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
   - { name: "Undo", actor: Reviewer, trigger: "Approve then Undo within 10 s", processes: [ FE.entry.approve, FE.entry.undo, MW.mapping.propose ], end: recommended }
   - { name: "Reject", actor: Reviewer, trigger: "Wrong recommendation", processes: [ FE.entry.reject ], end: rejected }
-  - { name: "Whatnot payout", actor: "Owner, reviewer", trigger: "Payout lands", processes: [ MW.payouts.import, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready ], end: ready }
-  - { name: "Learn a rule", actor: Reviewer, trigger: "3rd consistent approval", processes: [ MW.mapping.propose, FE.mappings.list, FE.mapping.apply, MW.entries.pull, AI.entry.recommend ], end: "mapping in Slash; next entry coded by rules:mapping" }
+  - { name: "Whatnot payout", actor: "Owner, reviewer", trigger: "Payout lands", processes: [ MW.payouts.import, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
+  - { name: "Learn a rule", actor: Reviewer, trigger: "3rd consistent approval", processes: [ MW.mapping.propose, FE.mappings.list, FE.mapping.apply, MW.ledger.pull, AI.entry.recommend ], end: "mapping in Slash; next entry coded by rules:mapping" }
   - { name: "Degraded: model down", actor: Cron, trigger: "Anthropic 5xx", processes: [ AI.entry.recommend ], end: "invalid — 'Model unavailable, retry'; manual edit-and-approve still works" }
   - { name: "Evals", actor: "Reviewer, CI", trigger: "`books evals run`", processes: [ IN.evals.run, AI.merchant.identify, AI.entry.recommend, FE.evals.show, FE.eval.add ], end: "EvalRun" }
   - { name: "Setup", actor: Owner, trigger: "First run", processes: [ FE.settings.show, MW.qbo.connect, MW.coa.pull, FE.coa.list ], end: "connected" }
@@ -287,9 +432,33 @@ traces:
     processes:
       - FE.system.graph
       - FE.component.toggle
-      - MW.entries.pull
+      - MW.ledger.pull
       - AI.entry.recommend
     end: component off → its whenOff behavior; on → normal
+  - name: Mercury expense (QuickBooks direct)
+    actor: Cron, reviewer
+    trigger: Hourly pull
+    processes:
+      - MW.ledger.pull
+      - MW.coa.pull
+      - MW.qbo.accounts
+      - MW.entry.research
+      - AI.entry.recommend
+      - MW.entry.validate
+      - FE.entry.approve
+      - MW.qbo.write
+      - MW.ledger.annotate
+    end: ready (QuickBooks txn created, matched or recoded)
+  - name: Connect a ledger
+    actor: Owner
+    trigger: Add Mercury
+    processes:
+      - FE.ledgers.list
+      - FE.ledger.add
+      - MW.ledger.test
+      - FE.ledger.toggle
+      - MW.ledger.pull
+    end: connection active, items pulled
 tools:
   slash.read:
     target: Slash API
@@ -299,8 +468,9 @@ tools:
       - listTransactionsForEntries
       - listAccountValues
     usedBy:
-      - MW.entries.pull
+      - MW.ledger.pull
       - MW.coa.pull
+      - MW.ledger.test
     toggle: false
   slash.write:
     target: Slash API
@@ -309,8 +479,8 @@ tools:
       - updateEntry
       - markReady
     usedBy:
-      - MW.entry.code
-      - MW.entry.ready
+      - MW.ledger.code
+      - MW.ledger.ready
     toggle: true
     whenOff: Approved entries are held, not sent, until Slash writes resume
   slash.mappings:
@@ -328,8 +498,10 @@ tools:
     ops:
       - listVendors
       - purchasesByVendor
+      - listAccounts
     usedBy:
       - MW.entry.research
+      - MW.qbo.accounts
     toggle: true
     whenOff: Research skips QuickBooks history
   model.anthropic:
@@ -351,3 +523,34 @@ tools:
       - AI.merchant.identify
     toggle: true
     whenOff: Merchant identify uses Haiku instead
+  mercury.read:
+    target: Mercury API
+    port: MercuryPort
+    ops:
+      - listAccounts
+      - listTransactions
+    usedBy:
+      - MW.ledger.pull
+      - MW.ledger.test
+    toggle: false
+  mercury.annotate:
+    target: Mercury API
+    port: MercuryPort
+    ops:
+      - updateTransaction (note)
+    usedBy:
+      - MW.ledger.annotate
+    toggle: true
+    default: false
+    whenOff: No notes on Mercury transactions (needs a read+write token, which Mercury requires to be IP-whitelisted)
+  qbo.write:
+    target: QuickBooks API
+    port: QboWritePort
+    ops:
+      - findCandidates
+      - create (requestid)
+      - updateLineAccounts
+    usedBy:
+      - MW.qbo.write
+    toggle: true
+    whenOff: Approvals for QuickBooks-direct ledgers (Mercury) are held, not written, until writes resume

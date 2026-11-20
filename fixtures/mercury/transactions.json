@@ -1,0 +1,298 @@
+[
+  {
+    "id": "m-0001",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-10-01T15:00:00.000Z",
+    "postedAt": "2026-10-01T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Software & Subscriptions",
+        "amount": 14.99
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0002",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-10-08T15:00:00.000Z",
+    "postedAt": "2026-10-08T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Software & Subscriptions",
+        "amount": 14.99
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0003",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-10-15T15:00:00.000Z",
+    "postedAt": "2026-10-15T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Software & Subscriptions",
+        "amount": 14.99
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0004",
+    "accountId": "acc_chk",
+    "amount": -8.4,
+    "createdAt": "2026-10-05T15:00:00.000Z",
+    "postedAt": "2026-10-05T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "USPS",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Shipping & Postage",
+        "amount": 8.4
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0005",
+    "accountId": "acc_chk",
+    "amount": -12.15,
+    "createdAt": "2026-10-19T15:00:00.000Z",
+    "postedAt": "2026-10-19T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "USPS",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Shipping & Postage",
+        "amount": 12.15
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0006",
+    "accountId": "acc_chk",
+    "amount": -25,
+    "createdAt": "2026-10-20T15:00:00.000Z",
+    "postedAt": "2026-10-20T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "FACEBK ADS",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [
+      {
+        "glCodeName": "Advertising & Marketing",
+        "amount": 25
+      }
+    ],
+    "accountingStatus": {
+      "status": "synced"
+    }
+  },
+  {
+    "id": "m-0007",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-11-01T15:00:00.000Z",
+    "postedAt": "2026-11-01T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0008",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-11-08T15:00:00.000Z",
+    "postedAt": "2026-11-08T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0009",
+    "accountId": "acc_chk",
+    "amount": -14.99,
+    "createdAt": "2026-11-17T15:00:00.000Z",
+    "postedAt": "2026-11-17T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "Canva",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0010",
+    "accountId": "acc_chk",
+    "amount": -9.6,
+    "createdAt": "2026-11-10T15:00:00.000Z",
+    "postedAt": "2026-11-10T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "USPS",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0011",
+    "accountId": "acc_chk",
+    "amount": -45.1,
+    "createdAt": "2026-11-12T15:00:00.000Z",
+    "postedAt": "2026-11-12T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "ULINE",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0012",
+    "accountId": "acc_chk",
+    "amount": -1250,
+    "createdAt": "2026-11-15T15:00:00.000Z",
+    "postedAt": "2026-11-15T18:00:00.000Z",
+    "status": "sent",
+    "kind": "outgoingPayment",
+    "counterpartyName": "GUSTO",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0013",
+    "accountId": "acc_chk",
+    "amount": -5000,
+    "createdAt": "2026-11-16T15:00:00.000Z",
+    "postedAt": "2026-11-16T18:00:00.000Z",
+    "status": "sent",
+    "kind": "internalTransfer",
+    "counterpartyName": "Mercury Savings",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  },
+  {
+    "id": "m-0014",
+    "accountId": "acc_chk",
+    "amount": -30,
+    "createdAt": "2026-11-16T15:00:00.000Z",
+    "postedAt": "2026-11-16T18:00:00.000Z",
+    "status": "sent",
+    "kind": "debitCardTransaction",
+    "counterpartyName": "FACEBK ADS",
+    "bankDescription": null,
+    "note": null,
+    "externalMemo": null,
+    "mercuryCategory": null,
+    "categoryData": null,
+    "glAllocations": [],
+    "accountingStatus": {
+      "status": "pending"
+    }
+  }
+]

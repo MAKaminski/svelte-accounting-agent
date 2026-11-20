@@ -145,5 +145,71 @@
       "action": "ask",
       "noLines": true
     }
+  },
+  {
+    "id": "ec_mercury_canva",
+    "kind": "golden",
+    "name": "Mercury card purchase with QuickBooks history",
+    "input": {
+      "chart": "qbo",
+      "transaction": {
+        "description": "Canva",
+        "amountCents": -1499,
+        "merchantName": "Canva",
+        "kind": "card"
+      },
+      "evidence": [
+        {
+          "id": "ev_1",
+          "kind": "slash_history",
+          "summary": "3 prior entries from Canva: 3× Software & Subscriptions"
+        }
+      ]
+    },
+    "expected": {
+      "action": "code",
+      "valueIds": [
+        "qbo:54"
+      ],
+      "minConfidence": 0.9
+    }
+  },
+  {
+    "id": "ec_mercury_gusto",
+    "kind": "edge",
+    "name": "Mercury ACH with counterparty only, no history",
+    "input": {
+      "chart": "qbo",
+      "transaction": {
+        "description": "GUSTO",
+        "amountCents": -125000,
+        "merchantName": "GUSTO",
+        "kind": "other"
+      },
+      "evidence": []
+    },
+    "expected": {
+      "action": "ask",
+      "questionHasBestGuess": true
+    }
+  },
+  {
+    "id": "ec_mercury_internal",
+    "kind": "refuse",
+    "name": "Mercury internal transfer to savings",
+    "input": {
+      "chart": "qbo",
+      "transaction": {
+        "description": "Mercury Savings",
+        "amountCents": -500000,
+        "merchantName": "Mercury Savings",
+        "kind": "own_transfer"
+      },
+      "evidence": []
+    },
+    "expected": {
+      "action": "ask",
+      "noLines": true
+    }
   }
 ]
