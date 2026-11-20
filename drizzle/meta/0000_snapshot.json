@@ -1,118 +1,369 @@
 {
-  "version": "6",
-  "dialect": "sqlite",
-  "id": "110df655-4b3c-4731-ab93-d74bc140a8d1",
+  "id": "a361b223-a8e8-4f55-ad1f-468cf19867b3",
   "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "component_states": {
-      "name": "component_states",
-      "columns": {
-        "component_id": {
-          "name": "component_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "config_json": {
-          "name": "config_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "decisions": {
-      "name": "decisions",
+    "public.api_tokens": {
+      "name": "api_tokens",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
-        "recommendation_id": {
-          "name": "recommendation_id",
+        "org_id": {
+          "name": "org_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "api_token_hash_idx": {
+          "name": "api_token_hash_idx",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "api_tokens_org_id_orgs_id_fk": {
+          "name": "api_tokens_org_id_orgs_id_fk",
+          "tableFrom": "api_tokens",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "api_tokens_user_id_users_id_fk": {
+          "name": "api_tokens_user_id_users_id_fk",
+          "tableFrom": "api_tokens",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "action": {
           "name": "action",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail_json": {
+          "name": "detail_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "at": {
+          "name": "at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "audit_org_at_idx": {
+          "name": "audit_org_at_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_log_org_id_orgs_id_fk": {
+          "name": "audit_log_org_id_orgs_id_fk",
+          "tableFrom": "audit_log",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.component_states": {
+      "name": "component_states",
+      "schema": "",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
+        },
+        "component_id": {
+          "name": "component_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "config_json": {
+          "name": "config_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "component_states_org_id_orgs_id_fk": {
+          "name": "component_states_org_id_orgs_id_fk",
+          "tableFrom": "component_states",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "component_states_org_id_component_id_pk": {
+          "name": "component_states_org_id_component_id_pk",
+          "columns": [
+            "org_id",
+            "component_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.decisions": {
+      "name": "decisions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
+        "recommendation_id": {
+          "name": "recommendation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "final_lines_json": {
           "name": "final_lines_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "final_memo": {
           "name": "final_memo",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "decided_by": {
           "name": "decided_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "decided_at": {
           "name": "decided_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "decision_rec_idx": {
           "name": "decision_rec_idx",
           "columns": [
-            "recommendation_id",
-            "decided_at"
+            {
+              "expression": "recommendation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "decided_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
+        "decisions_org_id_orgs_id_fk": {
+          "name": "decisions_org_id_orgs_id_fk",
+          "tableFrom": "decisions",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "decisions_recommendation_id_recommendations_id_fk": {
           "name": "decisions_recommendation_id_recommendations_id_fk",
           "tableFrom": "decisions",
@@ -129,183 +380,252 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "dimension_values": {
+    "public.dimension_values": {
       "name": "dimension_values",
+      "schema": "",
       "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "primaryKey": false,
+          "notNull": true
         },
         "dimension": {
           "name": "dimension",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "source": {
           "name": "source",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": "'slash'"
         },
         "qbo_account_id": {
           "name": "qbo_account_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "enabled": {
           "name": "enabled",
-          "type": "integer",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": true
         },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "dimension_values_org_id_orgs_id_fk": {
+          "name": "dimension_values_org_id_orgs_id_fk",
+          "tableFrom": "dimension_values",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "dimension_values_org_id_id_pk": {
+          "name": "dimension_values_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "eval_cases": {
+    "public.eval_cases": {
       "name": "eval_cases",
+      "schema": "",
       "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "primaryKey": false,
+          "notNull": true
         },
         "kind": {
           "name": "kind",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "input_json": {
           "name": "input_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "expected_json": {
           "name": "expected_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "eval_cases_org_id_orgs_id_fk": {
+          "name": "eval_cases_org_id_orgs_id_fk",
+          "tableFrom": "eval_cases",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "eval_cases_org_id_id_pk": {
+          "name": "eval_cases_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "evidence": {
+    "public.evidence": {
       "name": "evidence",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
         },
         "entry_id": {
           "name": "entry_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "kind": {
           "name": "kind",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "reference": {
           "name": "reference",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "payout_row_id": {
           "name": "payout_row_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "summary": {
           "name": "summary",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "evidence_entry_idx": {
           "name": "evidence_entry_idx",
           "columns": [
-            "entry_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entry_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "evidence_entry_id_ledger_items_id_fk": {
-          "name": "evidence_entry_id_ledger_items_id_fk",
+        "evidence_org_id_orgs_id_fk": {
+          "name": "evidence_org_id_orgs_id_fk",
           "tableFrom": "evidence",
-          "tableTo": "ledger_items",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "entry_id"
+            "org_id"
           ],
           "columnsTo": [
             "id"
@@ -313,12 +633,128 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "evidence_payout_row_id_payout_rows_id_fk": {
-          "name": "evidence_payout_row_id_payout_rows_id_fk",
+        "evidence_org_id_entry_id_ledger_items_org_id_id_fk": {
+          "name": "evidence_org_id_entry_id_ledger_items_org_id_id_fk",
+          "tableFrom": "evidence",
+          "tableTo": "ledger_items",
+          "columnsFrom": [
+            "org_id",
+            "entry_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "evidence_org_id_payout_row_id_payout_rows_org_id_id_fk": {
+          "name": "evidence_org_id_payout_row_id_payout_rows_org_id_id_fk",
           "tableFrom": "evidence",
           "tableTo": "payout_rows",
           "columnsFrom": [
+            "org_id",
             "payout_row_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invites": {
+      "name": "invites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_by": {
+          "name": "invited_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "invites_email_idx": {
+          "name": "invites_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "invites_org_id_orgs_id_fk": {
+          "name": "invites_org_id_orgs_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invites_invited_by_users_id_fk": {
+          "name": "invites_invited_by_users_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "users",
+          "columnsFrom": [
+            "invited_by"
           ],
           "columnsTo": [
             "id"
@@ -329,376 +765,496 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "ledger_connections": {
+    "public.ledger_connections": {
       "name": "ledger_connections",
+      "schema": "",
       "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "primaryKey": false,
+          "notNull": true
         },
         "kind": {
           "name": "kind",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "mode": {
           "name": "mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "config_json": {
           "name": "config_json",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": "'{}'"
         },
         "credentials_enc": {
           "name": "credentials_enc",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "capabilities_json": {
           "name": "capabilities_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "bank_feed_confirmed_by": {
           "name": "bank_feed_confirmed_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "bank_feed_confirmed_at": {
           "name": "bank_feed_confirmed_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "last_pull_at": {
           "name": "last_pull_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "last_error": {
           "name": "last_error",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "ledger_connections_org_id_orgs_id_fk": {
+          "name": "ledger_connections_org_id_orgs_id_fk",
+          "tableFrom": "ledger_connections",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ledger_connections_org_id_id_pk": {
+          "name": "ledger_connections_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "ledger_items": {
+    "public.ledger_items": {
       "name": "ledger_items",
+      "schema": "",
       "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "primaryKey": false,
+          "notNull": true
         },
         "connection_id": {
           "name": "connection_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "external_id": {
           "name": "external_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "qbo_txn_id": {
           "name": "qbo_txn_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "qbo_txn_type": {
           "name": "qbo_txn_type",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "ledger_status": {
           "name": "ledger_status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "local_state": {
           "name": "local_state",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": "'fetched'"
         },
         "amount_cents": {
           "name": "amount_cents",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "memo": {
           "name": "memo",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "state_reason": {
           "name": "state_reason",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "pending_until": {
           "name": "pending_until",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "raw_json": {
           "name": "raw_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "entries_state_idx": {
           "name": "entries_state_idx",
           "columns": [
-            "local_state",
-            "created_at"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "local_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "entries_conn_idx": {
           "name": "entries_conn_idx",
           "columns": [
-            "connection_id",
-            "local_state"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "local_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "entries_ext_idx": {
           "name": "entries_ext_idx",
           "columns": [
-            "connection_id",
-            "external_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "external_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "ledger_items_connection_id_ledger_connections_id_fk": {
-          "name": "ledger_items_connection_id_ledger_connections_id_fk",
+        "ledger_items_org_id_orgs_id_fk": {
+          "name": "ledger_items_org_id_orgs_id_fk",
           "tableFrom": "ledger_items",
-          "tableTo": "ledger_connections",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "connection_id"
+            "org_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "ledger_items_org_id_connection_id_ledger_connections_org_id_id_fk": {
+          "name": "ledger_items_org_id_connection_id_ledger_connections_org_id_id_fk",
+          "tableFrom": "ledger_items",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "org_id",
+            "connection_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "ledger_items_org_id_id_pk": {
+          "name": "ledger_items_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "ledger_transactions": {
+    "public.ledger_transactions": {
       "name": "ledger_transactions",
+      "schema": "",
       "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "primaryKey": false,
+          "notNull": true
         },
         "item_id": {
           "name": "item_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "connection_id": {
           "name": "connection_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "kind_hint": {
           "name": "kind_hint",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "date": {
           "name": "date",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "merchant_id": {
           "name": "merchant_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "merchant_name": {
           "name": "merchant_name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "mcc": {
           "name": "mcc",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "category_id": {
           "name": "category_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "amount_cents": {
           "name": "amount_cents",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "raw_json": {
           "name": "raw_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "tx_entry_idx": {
           "name": "tx_entry_idx",
           "columns": [
-            "item_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "tx_merchant_idx": {
           "name": "tx_merchant_idx",
           "columns": [
-            "merchant_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "ledger_transactions_item_id_ledger_items_id_fk": {
-          "name": "ledger_transactions_item_id_ledger_items_id_fk",
+        "ledger_transactions_org_id_orgs_id_fk": {
+          "name": "ledger_transactions_org_id_orgs_id_fk",
           "tableFrom": "ledger_transactions",
-          "tableTo": "ledger_items",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "item_id"
+            "org_id"
           ],
           "columnsTo": [
             "id"
@@ -706,94 +1262,141 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "ledger_transactions_connection_id_ledger_connections_id_fk": {
-          "name": "ledger_transactions_connection_id_ledger_connections_id_fk",
+        "ledger_transactions_org_id_item_id_ledger_items_org_id_id_fk": {
+          "name": "ledger_transactions_org_id_item_id_ledger_items_org_id_id_fk",
+          "tableFrom": "ledger_transactions",
+          "tableTo": "ledger_items",
+          "columnsFrom": [
+            "org_id",
+            "item_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ledger_transactions_org_id_connection_id_ledger_connections_org_id_id_fk": {
+          "name": "ledger_transactions_org_id_connection_id_ledger_connections_org_id_id_fk",
           "tableFrom": "ledger_transactions",
           "tableTo": "ledger_connections",
           "columnsFrom": [
+            "org_id",
             "connection_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "ledger_transactions_org_id_id_pk": {
+          "name": "ledger_transactions_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "local_mappings": {
+    "public.local_mappings": {
       "name": "local_mappings",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
         },
         "connection_id": {
           "name": "connection_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "proposal_id": {
           "name": "proposal_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "source_id": {
           "name": "source_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "value_id": {
           "name": "value_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_by": {
           "name": "created_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "local_map_idx": {
           "name": "local_map_idx",
           "columns": [
-            "connection_id",
-            "source_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "local_mappings_connection_id_ledger_connections_id_fk": {
-          "name": "local_mappings_connection_id_ledger_connections_id_fk",
+        "local_mappings_org_id_orgs_id_fk": {
+          "name": "local_mappings_org_id_orgs_id_fk",
           "tableFrom": "local_mappings",
-          "tableTo": "ledger_connections",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "connection_id"
+            "org_id"
           ],
           "columnsTo": [
             "id"
@@ -814,14 +1417,31 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "local_mappings_value_id_dimension_values_id_fk": {
-          "name": "local_mappings_value_id_dimension_values_id_fk",
+        "local_mappings_org_id_connection_id_ledger_connections_org_id_id_fk": {
+          "name": "local_mappings_org_id_connection_id_ledger_connections_org_id_id_fk",
+          "tableFrom": "local_mappings",
+          "tableTo": "ledger_connections",
+          "columnsFrom": [
+            "org_id",
+            "connection_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "local_mappings_org_id_value_id_dimension_values_org_id_id_fk": {
+          "name": "local_mappings_org_id_value_id_dimension_values_org_id_id_fk",
           "tableFrom": "local_mappings",
           "tableTo": "dimension_values",
           "columnsFrom": [
+            "org_id",
             "value_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
@@ -830,131 +1450,175 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "mapping_proposals": {
+    "public.mapping_proposals": {
       "name": "mapping_proposals",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
         },
         "connection_id": {
           "name": "connection_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "target": {
           "name": "target",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": "'ledger'"
         },
         "source_type": {
           "name": "source_type",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "source_id": {
           "name": "source_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "source_label": {
           "name": "source_label",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "dimension": {
           "name": "dimension",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "value_id": {
           "name": "value_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "support_count": {
           "name": "support_count",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "applied_at": {
           "name": "applied_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         }
       },
       "indexes": {
         "mapping_source_idx": {
           "name": "mapping_source_idx",
           "columns": [
-            "connection_id",
-            "source_type",
-            "source_id",
-            "dimension"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dimension",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "mapping_proposals_connection_id_ledger_connections_id_fk": {
-          "name": "mapping_proposals_connection_id_ledger_connections_id_fk",
+        "mapping_proposals_org_id_orgs_id_fk": {
+          "name": "mapping_proposals_org_id_orgs_id_fk",
+          "tableFrom": "mapping_proposals",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "mapping_proposals_org_id_connection_id_ledger_connections_org_id_id_fk": {
+          "name": "mapping_proposals_org_id_connection_id_ledger_connections_org_id_id_fk",
           "tableFrom": "mapping_proposals",
           "tableTo": "ledger_connections",
           "columnsFrom": [
+            "org_id",
             "connection_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "mapping_proposals_value_id_dimension_values_id_fk": {
-          "name": "mapping_proposals_value_id_dimension_values_id_fk",
+        "mapping_proposals_org_id_value_id_dimension_values_org_id_id_fk": {
+          "name": "mapping_proposals_org_id_value_id_dimension_values_org_id_id_fk",
           "tableFrom": "mapping_proposals",
           "tableTo": "dimension_values",
           "columnsFrom": [
+            "org_id",
             "value_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
@@ -963,187 +1627,89 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "payout_rows": {
-      "name": "payout_rows",
+    "public.memberships": {
+      "name": "memberships",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
-        "channel": {
-          "name": "channel",
+        "org_id": {
+          "name": "org_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
         },
-        "payout_id": {
-          "name": "payout_id",
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
-        "date": {
-          "name": "date",
+        "role": {
+          "name": "role",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "gross_cents": {
-          "name": "gross_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fees_cents": {
-          "name": "fees_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "shipping_cents": {
-          "name": "shipping_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "net_cents": {
-          "name": "net_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "qbo_tokens": {
-      "name": "qbo_tokens",
-      "columns": {
-        "realm_id": {
-          "name": "realm_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "access_token_enc": {
-          "name": "access_token_enc",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "refresh_token_enc": {
-          "name": "refresh_token_enc",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "questions": {
-      "name": "questions",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "entry_id": {
-          "name": "entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "best_guess": {
-          "name": "best_guess",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "answer": {
-          "name": "answer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "answered_at": {
-          "name": "answered_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "membership_org_user_idx": {
+          "name": "membership_org_user_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "questions_entry_id_ledger_items_id_fk": {
-          "name": "questions_entry_id_ledger_items_id_fk",
-          "tableFrom": "questions",
-          "tableTo": "ledger_items",
+        "memberships_org_id_orgs_id_fk": {
+          "name": "memberships_org_id_orgs_id_fk",
+          "tableFrom": "memberships",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "entry_id"
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "memberships_user_id_users_id_fk": {
+          "name": "memberships_user_id_users_id_fk",
+          "tableFrom": "memberships",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -1154,108 +1720,386 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "recommendations": {
-      "name": "recommendations",
+    "public.orgs": {
+      "name": "orgs",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payout_rows": {
+      "name": "payout_rows",
+      "schema": "",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payout_id": {
+          "name": "payout_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_cents": {
+          "name": "gross_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fees_cents": {
+          "name": "fees_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shipping_cents": {
+          "name": "shipping_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_cents": {
+          "name": "net_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "payout_rows_org_id_orgs_id_fk": {
+          "name": "payout_rows_org_id_orgs_id_fk",
+          "tableFrom": "payout_rows",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "payout_rows_org_id_id_pk": {
+          "name": "payout_rows_org_id_id_pk",
+          "columns": [
+            "org_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.qbo_tokens": {
+      "name": "qbo_tokens",
+      "schema": "",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
+        },
+        "realm_id": {
+          "name": "realm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token_enc": {
+          "name": "access_token_enc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token_enc": {
+          "name": "refresh_token_enc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "qbo_tokens_org_id_orgs_id_fk": {
+          "name": "qbo_tokens_org_id_orgs_id_fk",
+          "tableFrom": "qbo_tokens",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.questions": {
+      "name": "questions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "current_setting('app.org_id', true)"
         },
         "entry_id": {
           "name": "entry_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "best_guess": {
+          "name": "best_guess",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "answer": {
+          "name": "answer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answered_at": {
+          "name": "answered_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "questions_org_id_orgs_id_fk": {
+          "name": "questions_org_id_orgs_id_fk",
+          "tableFrom": "questions",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "questions_org_id_entry_id_ledger_items_org_id_id_fk": {
+          "name": "questions_org_id_entry_id_ledger_items_org_id_id_fk",
+          "tableFrom": "questions",
+          "tableTo": "ledger_items",
+          "columnsFrom": [
+            "org_id",
+            "entry_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.recommendations": {
+      "name": "recommendations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "run_id": {
           "name": "run_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "primary_value_id": {
           "name": "primary_value_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "action": {
           "name": "action",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "lines_json": {
           "name": "lines_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "memo": {
           "name": "memo",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "confidence": {
           "name": "confidence",
-          "type": "real",
+          "type": "double precision",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "reasoning": {
           "name": "reasoning",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "question": {
           "name": "question",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "prompt_version": {
           "name": "prompt_version",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "model": {
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "input_hash": {
           "name": "input_hash",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "tokens_fresh": {
           "name": "tokens_fresh",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": 0
         },
         "tokens_cache_write": {
@@ -1263,7 +2107,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": 0
         },
         "tokens_cache_read": {
@@ -1271,7 +2114,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": 0
         },
         "tokens_out": {
@@ -1279,70 +2121,92 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": 0
         },
         "cost_usd": {
           "name": "cost_usd",
-          "type": "real",
+          "type": "double precision",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": 0
         },
         "ttft_ms": {
           "name": "ttft_ms",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "e2e_ms": {
           "name": "e2e_ms",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "shadow_auto_approve": {
           "name": "shadow_auto_approve",
-          "type": "integer",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
           "default": false
         },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         }
       },
       "indexes": {
         "rec_entry_idx": {
           "name": "rec_entry_idx",
           "columns": [
-            "entry_id"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entry_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "rec_hash_idx": {
           "name": "rec_hash_idx",
           "columns": [
-            "input_hash"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "input_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "recommendations_entry_id_ledger_items_id_fk": {
-          "name": "recommendations_entry_id_ledger_items_id_fk",
+        "recommendations_org_id_orgs_id_fk": {
+          "name": "recommendations_org_id_orgs_id_fk",
           "tableFrom": "recommendations",
-          "tableTo": "ledger_items",
+          "tableTo": "orgs",
           "columnsFrom": [
-            "entry_id"
+            "org_id"
           ],
           "columnsTo": [
             "id"
@@ -1363,14 +2227,31 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "recommendations_primary_value_id_dimension_values_id_fk": {
-          "name": "recommendations_primary_value_id_dimension_values_id_fk",
+        "recommendations_org_id_entry_id_ledger_items_org_id_id_fk": {
+          "name": "recommendations_org_id_entry_id_ledger_items_org_id_id_fk",
+          "tableFrom": "recommendations",
+          "tableTo": "ledger_items",
+          "columnsFrom": [
+            "org_id",
+            "entry_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "recommendations_org_id_primary_value_id_dimension_values_org_id_id_fk": {
+          "name": "recommendations_org_id_primary_value_id_dimension_values_org_id_id_fk",
           "tableFrom": "recommendations",
           "tableTo": "dimension_values",
           "columnsFrom": [
+            "org_id",
             "primary_value_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
@@ -1379,94 +2260,129 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "runs": {
+    "public.runs": {
       "name": "runs",
+      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "current_setting('app.org_id', true)"
         },
         "process_id": {
           "name": "process_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "eval_case_id": {
           "name": "eval_case_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "subject_id": {
           "name": "subject_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "started_at": {
           "name": "started_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "ended_at": {
           "name": "ended_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "error": {
           "name": "error",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "detail_json": {
           "name": "detail_json",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         }
       },
       "indexes": {
         "runs_process_idx": {
           "name": "runs_process_idx",
           "columns": [
-            "process_id",
-            "started_at"
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "process_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "runs_eval_case_id_eval_cases_id_fk": {
-          "name": "runs_eval_case_id_eval_cases_id_fk",
+        "runs_org_id_orgs_id_fk": {
+          "name": "runs_org_id_orgs_id_fk",
+          "tableFrom": "runs",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "runs_org_id_eval_case_id_eval_cases_org_id_id_fk": {
+          "name": "runs_org_id_eval_case_id_eval_cases_org_id_id_fk",
           "tableFrom": "runs",
           "tableTo": "eval_cases",
           "columnsFrom": [
+            "org_id",
             "eval_case_id"
           ],
           "columnsTo": [
+            "org_id",
             "id"
           ],
           "onDelete": "no action",
@@ -1475,17 +2391,85 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "google_sub": {
+          "name": "google_sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "users_email_idx": {
+          "name": "users_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
-  "views": {},
   "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
-  },
-  "internal": {
-    "indexes": {}
+    "tables": {}
   }
 }

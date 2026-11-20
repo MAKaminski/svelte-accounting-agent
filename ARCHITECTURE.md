@@ -202,31 +202,74 @@ Products and what they use:
 <!-- gen:erd -->
 ```mermaid
 erDiagram
+  orgs ||--o{ api_tokens : org_id
+  users ||--o{ api_tokens : user_id
+  orgs ||--o{ audit_log : org_id
+  orgs ||--o{ component_states : org_id
+  orgs ||--o{ decisions : org_id
   recommendations ||--o{ decisions : recommendation_id
-  ledger_items ||--o{ evidence : entry_id
-  payout_rows ||--o{ evidence : payout_row_id
-  ledger_connections ||--o{ ledger_items : connection_id
-  ledger_items ||--o{ ledger_transactions : item_id
-  ledger_connections ||--o{ ledger_transactions : connection_id
-  ledger_connections ||--o{ local_mappings : connection_id
+  orgs ||--o{ dimension_values : org_id
+  orgs ||--o{ eval_cases : org_id
+  orgs ||--o{ evidence : org_id
+  ledger_items ||--o{ evidence : org_id_entry_id
+  payout_rows ||--o{ evidence : org_id_payout_row_id
+  orgs ||--o{ invites : org_id
+  users ||--o{ invites : invited_by
+  orgs ||--o{ ledger_connections : org_id
+  orgs ||--o{ ledger_items : org_id
+  ledger_connections ||--o{ ledger_items : org_id_connection_id
+  orgs ||--o{ ledger_transactions : org_id
+  ledger_items ||--o{ ledger_transactions : org_id_item_id
+  ledger_connections ||--o{ ledger_transactions : org_id_connection_id
+  orgs ||--o{ local_mappings : org_id
   mapping_proposals ||--o{ local_mappings : proposal_id
-  dimension_values ||--o{ local_mappings : value_id
-  ledger_connections ||--o{ mapping_proposals : connection_id
-  dimension_values ||--o{ mapping_proposals : value_id
-  ledger_items ||--o{ questions : entry_id
-  ledger_items ||--o{ recommendations : entry_id
+  ledger_connections ||--o{ local_mappings : org_id_connection_id
+  dimension_values ||--o{ local_mappings : org_id_value_id
+  orgs ||--o{ mapping_proposals : org_id
+  ledger_connections ||--o{ mapping_proposals : org_id_connection_id
+  dimension_values ||--o{ mapping_proposals : org_id_value_id
+  orgs ||--o{ memberships : org_id
+  users ||--o{ memberships : user_id
+  orgs ||--o{ payout_rows : org_id
+  orgs ||--o{ qbo_tokens : org_id
+  orgs ||--o{ questions : org_id
+  ledger_items ||--o{ questions : org_id_entry_id
+  orgs ||--o{ recommendations : org_id
   runs ||--o{ recommendations : run_id
-  dimension_values ||--o{ recommendations : primary_value_id
-  eval_cases ||--o{ runs : eval_case_id
+  ledger_items ||--o{ recommendations : org_id_entry_id
+  dimension_values ||--o{ recommendations : org_id_primary_value_id
+  orgs ||--o{ runs : org_id
+  eval_cases ||--o{ runs : org_id_eval_case_id
+  api_tokens {
+    text id PK
+    text org_id FK
+    text user_id FK
+    text name
+    text token_hash
+    text last_used_at
+    text revoked_at
+    text created_at
+  }
+  audit_log {
+    text id PK
+    text org_id FK
+    text actor
+    text action
+    text subject
+    text detail_json
+    text at
+  }
   component_states {
+    text org_id PK
     text component_id PK
-    text enabled
+    bool enabled
     text config_json
     text updated_by
     text updated_at
   }
   decisions {
     text id PK
+    text org_id FK
     text recommendation_id FK
     text action
     text final_lines_json
@@ -235,15 +278,17 @@ erDiagram
     text decided_at
   }
   dimension_values {
+    text org_id PK
     text id PK
     text dimension
     text source
     text qbo_account_id
     text name
-    text enabled
+    bool enabled
     text updated_at
   }
   eval_cases {
+    text org_id PK
     text id PK
     text kind
     text name
@@ -252,6 +297,7 @@ erDiagram
   }
   evidence {
     text id PK
+    text org_id FK
     text entry_id FK
     text kind
     text reference
@@ -259,7 +305,17 @@ erDiagram
     text summary
     text created_at
   }
+  invites {
+    text id PK
+    text org_id FK
+    text email
+    text role
+    text invited_by FK
+    text created_at
+    text accepted_at
+  }
   ledger_connections {
+    text org_id PK
     text id PK
     text kind
     text name
@@ -276,6 +332,7 @@ erDiagram
     text updated_at
   }
   ledger_items {
+    text org_id PK
     text id PK
     text connection_id FK
     text external_id
@@ -292,6 +349,7 @@ erDiagram
     text updated_at
   }
   ledger_transactions {
+    text org_id PK
     text id PK
     text item_id FK
     text connection_id FK
@@ -307,6 +365,7 @@ erDiagram
   }
   local_mappings {
     text id PK
+    text org_id FK
     text connection_id FK
     text proposal_id FK
     text source_id
@@ -316,6 +375,7 @@ erDiagram
   }
   mapping_proposals {
     text id PK
+    text org_id FK
     text connection_id FK
     text target
     text source_type
@@ -328,7 +388,20 @@ erDiagram
     text created_at
     text applied_at
   }
+  memberships {
+    text id PK
+    text org_id FK
+    text user_id FK
+    text role
+    text created_at
+  }
+  orgs {
+    text id PK
+    text name
+    text created_at
+  }
   payout_rows {
+    text org_id PK
     text id PK
     text channel
     text payout_id
@@ -339,7 +412,8 @@ erDiagram
     int net_cents
   }
   qbo_tokens {
-    text realm_id PK
+    text org_id PK
+    text realm_id
     text access_token_enc
     text refresh_token_enc
     text expires_at
@@ -347,6 +421,7 @@ erDiagram
   }
   questions {
     text id PK
+    text org_id FK
     text entry_id FK
     text text
     text best_guess
@@ -357,13 +432,14 @@ erDiagram
   }
   recommendations {
     text id PK
+    text org_id FK
     text entry_id FK
     text run_id FK
     text primary_value_id FK
     text action
     text lines_json
     text memo
-    real confidence
+    float8 confidence
     text reasoning
     text question
     text prompt_version
@@ -373,14 +449,15 @@ erDiagram
     int tokens_cache_write
     int tokens_cache_read
     int tokens_out
-    real cost_usd
+    float8 cost_usd
     int ttft_ms
     int e2e_ms
-    text shadow_auto_approve
+    bool shadow_auto_approve
     text created_at
   }
   runs {
     text id PK
+    text org_id FK
     text process_id
     text eval_case_id FK
     text subject_id
@@ -389,6 +466,14 @@ erDiagram
     text status
     text error
     text detail_json
+  }
+  users {
+    text id PK
+    text email
+    text name
+    text google_sub
+    text last_seen_at
+    text created_at
   }
 ```
 <!-- /gen:erd -->
@@ -538,21 +623,27 @@ State cards (table → writers):
 <!-- gen:states -->
 | Component (table) | Written by |
 |---|---|
+| `api_tokens` | `—` |
+| `audit_log` | `—` |
 | `component_states` | `FE.component.toggle` |
 | `decisions` | `FE.entry.approve`, `FE.entry.undo`, `FE.entry.ask`, `FE.entry.reject` |
 | `dimension_values` | `MW.coa.pull`, `MW.qbo.accounts` |
 | `eval_cases` | `FE.eval.add` |
 | `evidence` | `MW.entry.research`, `AI.merchant.identify`, `FE.question.answer` |
+| `invites` | `—` |
 | `ledger_connections` | `MW.ledger.pull`, `FE.ledger.add`, `FE.ledger.toggle` |
 | `ledger_items` | `MW.ledger.pull`, `MW.entry.research`, `AI.entry.recommend`, `FE.entry.approve`, `FE.entry.undo`, `MW.ledger.code`, `MW.ledger.ready`, `FE.entry.ask`, `FE.entry.reject`, `FE.question.answer`, `MW.qbo.write` |
 | `ledger_transactions` | `MW.ledger.pull` |
 | `local_mappings` | `FE.mapping.apply` |
 | `mapping_proposals` | `MW.mapping.propose`, `FE.mapping.apply` |
+| `memberships` | `—` |
+| `orgs` | `—` |
 | `payout_rows` | `MW.payouts.import` |
 | `qbo_tokens` | `MW.qbo.connect` |
 | `questions` | `FE.entry.ask`, `FE.question.answer` |
 | `recommendations` | `AI.entry.recommend` |
 | `runs` | `IN.evals.run` |
+| `users` | `—` |
 <!-- /gen:states -->
 
 `accounting_entries` invariants: lines sum to the transaction amount; local state never goes ahead of Slash status; nothing is written to Slash without a recorded human decision; an approved entry is written only after `pending_until`.

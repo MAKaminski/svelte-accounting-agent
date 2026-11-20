@@ -1,12 +1,12 @@
 // Control plane: the component registry (processes + tools from processes.yaml) joined with
-// per-component on/off state and 7-day run metrics. Powers /system and isEnabled() checks.
+// per-component on/off state and 7-day run metrics. Powers /system and await isEnabled() checks.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
 import { eq, gte } from 'drizzle-orm';
 import { getDb, schema } from './db';
 import { AppError, nowIso } from './util';
-import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import type { Component, ComponentDetail, SystemGraph } from '$lib/types';
 
 type Step = { kind: 'rule' | 'judgment' | 'human'; does: string; tier?: string; evals?: string[] };
@@ -38,31 +38,31 @@ export function kindOf(id: string): Component['kind'] {
 const layerOf = (id: string, kind: Component['kind']) => (kind === 'tool' ? 'TOOLS' : id.split('.')[0]) as Component['layer'];
 
 /** Absent row = the component's default (true unless `default: false`). toggle: false = always enabled. */
-export function isEnabled(id: string): boolean {
+export async function isEnabled(id: string): Promise<boolean> {
   const r = registry();
   const def = r.processes[id] ?? r.tools[id];
   if (!def?.toggle) return true;
-  const row = getDb().select().from(schema.componentStates).where(eq(schema.componentStates.componentId, id)).get();
+  const row = await getDb().select().from(schema.componentStates).where(eq(schema.componentStates.componentId, id)).get();
   return row ? row.enabled : def.default !== false;
 }
 
-export function setComponentState(id: string, enabled: boolean, by: string): Component {
+export async function setComponentState(id: string, enabled: boolean, by: string): Promise<Component> {
   const r = registry();
   const def = r.processes[id] ?? r.tools[id];
   if (!def) throw new AppError('not_found', `component ${id} not found`, 404);
   if (!def.toggle && !enabled) throw new AppError('not_toggleable', `${id} is required and cannot be switched off`, 400);
   const db = getDb();
   const values = { componentId: id, enabled, configJson: null, updatedBy: by, updatedAt: nowIso() };
-  db.insert(schema.componentStates).values(values).onConflictDoUpdate({ target: schema.componentStates.componentId, set: values }).run();
-  return listComponents().find((c) => c.id === id)!;
+  await db.insert(schema.componentStates).values(values).onConflictDoUpdate({ target: [schema.componentStates.orgId, schema.componentStates.componentId], set: values }).run();
+  return (await listComponents()).find((c) => c.id === id)!;
 }
 
 interface Metrics { calls: number; failures: number; p95Ms: number | null; lastRunAt: string | null; lastStatus: string | null; costUsd: number; cacheReadShare: number | null }
 
-function metrics(): Map<string, Metrics> {
+async function metrics(): Promise<Map<string, Metrics>> {
   const db = getDb();
   const since = nowIso(new Date(Date.now() - 7 * 86_400_000));
-  const runs = db.select().from(schema.runs).where(gte(schema.runs.startedAt, since)).all();
+  const runs = await db.select().from(schema.runs).where(gte(schema.runs.startedAt, since)).all();
   const byProc = new Map<string, typeof runs>();
   for (const r of runs) byProc.set(r.processId, [...(byProc.get(r.processId) ?? []), r]);
   const out = new Map<string, Metrics>();
@@ -76,7 +76,7 @@ function metrics(): Map<string, Metrics> {
     });
   }
   // Model cost + cache share for the recommend agent (from recommendations, the per-call source of truth).
-  const recs = db.select().from(schema.recommendations).where(gte(schema.recommendations.createdAt, since)).all();
+  const recs = await db.select().from(schema.recommendations).where(gte(schema.recommendations.createdAt, since)).all();
   const m = out.get('AI.entry.recommend');
   if (m) {
     m.costUsd = recs.reduce((s, r) => s + r.costUsd, 0);
@@ -90,12 +90,12 @@ function metrics(): Map<string, Metrics> {
 const LEDGER_TARGETS: Record<string, string> = { 'Slash API': 'slash', 'Mercury API': 'mercury' };
 const SOURCE_BY_TARGET: Record<string, string> = { 'Slash API': 'slash', 'QuickBooks API': 'qbo', Anthropic: 'model', Ollama: 'model', 'Mercury API': 'app' };
 
-export function listComponents(kind?: Component['kind']): Component[] {
+export async function listComponents(kind?: Component['kind']): Promise<Component[]> {
   const r = registry();
   const db = getDb();
-  const states = new Map(db.select().from(schema.componentStates).all().map((s) => [s.componentId, s]));
-  const mets = metrics();
-  const lastEval = lastEvalRun();
+  const states = new Map((await db.select().from(schema.componentStates).all()).map((s) => [s.componentId, s]));
+  const mets = await metrics();
+  const lastEval = await lastEvalRun();
   const zero: Metrics = { calls: 0, failures: 0, p95Ms: null, lastRunAt: null, lastStatus: null, costUsd: 0, cacheReadShare: null };
 
   const status = (enabled: boolean, m: Metrics): Component['status'] =>
@@ -120,14 +120,14 @@ export function listComponents(kind?: Component['kind']): Component[] {
     };
   });
 
-  const tools: Component[] = Object.entries(r.tools).map(([id, t]) => {
+  const tools: Component[] = await Promise.all(Object.entries(r.tools).map(async ([id, t]): Promise<Component> => {
     const st = states.get(id);
     const enabled = t.toggle ? (st?.enabled ?? t.default !== false) : true;
     // Tool health = runs of the processes that use it; failures counted only when the upstream was this tool's target.
     const src = SOURCE_BY_TARGET[t.target];
     let calls = 0, failures = 0, lastRunAt: string | null = null;
     for (const p of t.usedBy) {
-      const rs = db.select().from(schema.runs).where(eq(schema.runs.processId, p)).all();
+      const rs = await db.select().from(schema.runs).where(eq(schema.runs.processId, p)).all();
       calls += rs.length;
       failures += rs.filter((x) => x.status === 'failed' && x.detailJson && JSON.parse(x.detailJson).source === src).length;
       for (const x of rs) if (!lastRunAt || x.startedAt > lastRunAt) lastRunAt = x.startedAt;
@@ -140,24 +140,24 @@ export function listComponents(kind?: Component['kind']): Component[] {
       calls7d: calls, failures7d: failures, p95Ms: null, costUsd7d: 0, cacheReadShare: null,
       lastRunAt, updatedBy: st?.updatedBy ?? null, updatedAt: st?.updatedAt ?? null
     };
-  });
+  }));
   const all = [...procs, ...tools];
   return kind ? all.filter((c) => c.kind === kind) : all;
 }
 
-function lastEvalRun(): { cases: { caseId: string; pass: boolean }[] } | null {
-  const rows = getDb().select().from(schema.runs).where(eq(schema.runs.processId, 'IN.evals.run')).all()
+async function lastEvalRun(): Promise<{ cases: { caseId: string; pass: boolean }[] } | null> {
+  const rows = (await getDb().select().from(schema.runs).where(eq(schema.runs.processId, 'IN.evals.run')).all())
     .filter((r) => r.detailJson?.includes('evalRun')).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return rows[0] ? JSON.parse(rows[0].detailJson!).evalRun : null;
 }
 
-export function systemGraph(): SystemGraph {
+export async function systemGraph(): Promise<SystemGraph> {
   const r = registry();
-  const comps = listComponents();
-  const tables = (Object.values(schema) as unknown[]).filter((v): v is SQLiteTable => v instanceof SQLiteTable).map((t) => getTableConfig(t).name);
+  const comps = await listComponents();
+  const tables = (Object.values(schema) as unknown[]).filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t).name);
   const targets = [...new Set(Object.values(r.tools).map((t) => t.target))];
   // Ledger APIs fan out to one node per connection, so several Slash/Mercury ledgers show separately.
-  const conns = getDb().select().from(schema.ledgerConnections).all();
+  const conns = await getDb().select().from(schema.ledgerConnections).all();
   const connNodes = (target: string) => {
     const kind = LEDGER_TARGETS[target];
     return kind ? conns.filter((c) => c.kind === kind) : [];
@@ -198,14 +198,14 @@ export const ENTRY_TRANSITIONS: [string, string, string][] = [
   ['ready', 'synced', 'MW.ledger.pull'], ['recommended', 'rejected', 'FE.entry.reject'], ['asked', 'rejected', 'FE.entry.reject']
 ];
 
-export function componentDetail(id: string): ComponentDetail {
+export async function componentDetail(id: string): Promise<ComponentDetail> {
   const r = registry();
-  const c = listComponents().find((x) => x.id === id);
+  const c = (await listComponents()).find((x) => x.id === id);
   if (!c) throw new AppError('not_found', `component ${id} not found`, 404);
   const db = getDb();
   const counts: Record<string, number> = {};
-  for (const e of db.select({ s: schema.ledgerItems.localState }).from(schema.ledgerItems).all()) counts[e.s] = (counts[e.s] ?? 0) + 1;
-  const runs = db.select().from(schema.runs).where(eq(schema.runs.processId, id)).all()
+  for (const e of await db.select({ s: schema.ledgerItems.localState }).from(schema.ledgerItems).all()) counts[e.s] = (counts[e.s] ?? 0) + 1;
+  const runs = (await db.select().from(schema.runs).where(eq(schema.runs.processId, id)).all())
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 20)
     .map((x) => ({ id: x.id, subjectId: x.subjectId, startedAt: x.startedAt, status: x.status, error: x.error, e2eMs: x.detailJson ? (JSON.parse(x.detailJson).e2e_ms ?? null) : null }));
   const p = r.processes[id];

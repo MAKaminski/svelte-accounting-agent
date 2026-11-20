@@ -3,6 +3,8 @@ import { building } from '$app/environment';
 import { timingSafeEqual } from 'node:crypto';
 import { config } from '$lib/server/env';
 import { startScheduler } from '$lib/server/scheduler';
+import { withOrg } from '$lib/server/db';
+import { ensureOrg } from '$lib/server/orgs';
 
 import { sessionToken } from '$lib/server/auth';
 
@@ -11,6 +13,8 @@ function safeEq(a: string, b: string) {
   return A.length === B.length && timingSafeEqual(A, B);
 }
 
+// One default org until Google sign-in lands (M8 step 3); every request runs in its RLS context.
+const orgReady = building ? Promise.resolve('') : ensureOrg();
 if (!building) startScheduler();
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -28,5 +32,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     if (event.url.pathname.startsWith('/api/')) return json({ error: { code: 'unauthorized', message: 'Passcode required (set APP_PASSCODE for the CLI)', source: 'app' } }, { status: 401 });
     redirect(303, `/login?next=${encodeURIComponent(event.url.pathname)}`);
   }
-  return resolve(event);
+  if (event.url.pathname === '/api/health') return resolve(event);
+  const orgId = await orgReady;
+  event.locals.orgId = orgId;
+  return withOrg(orgId, () => Promise.resolve(resolve(event)), event.locals.user);
 };

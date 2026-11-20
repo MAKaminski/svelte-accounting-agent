@@ -20,15 +20,15 @@ type Outcome = { state: 'ready' | 'recommended' | 'invalid' | 'approved'; reason
 
 export async function writeToQbo(entryId: string, decision: { id: string; finalLinesJson: string | null; finalMemo: string | null }): Promise<Outcome> {
   const db = getDb();
-  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get()!;
-  const conn = getConnection(e.connectionId);
+  const e = (await db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get())!;
+  const conn = await getConnection(e.connectionId);
   const item = JSON.parse(e.rawJson) as LedgerItem;
   const lines = JSON.parse(decision.finalLinesJson ?? '[]') as Line[];
 
   // rule: mappings
   const bankAccountId = configOf(conn).qboBankAccountIdByAccount?.[item.tx.accountId ?? ''];
   if (!bankAccountId) return { state: 'recommended', reason: `QUICKBOOKS: no QuickBooks bank account mapped for ${conn.name} account ${item.tx.accountId ?? '?'} (set it in /ledgers)` };
-  const dims = new Map(db.select().from(schema.dimensionValues).all().map((d) => [d.id, d]));
+  const dims = new Map((await db.select().from(schema.dimensionValues).all()).map((d) => [d.id, d]));
   const qLines = [] as { accountId: string; amountCents: number; description?: string }[];
   for (const l of lines) {
     const d = dims.get(l.valueId);
@@ -55,7 +55,7 @@ export async function writeToQbo(entryId: string, decision: { id: string; finalL
           return { state: 'ready', reason: `Matched QuickBooks ${match.type} ${match.id} (was uncategorized) and recoded it`, qboTxnId: updated.id, qboTxnType: updated.type };
         }
         if (wanted === has) return { state: 'ready', reason: `Already in QuickBooks as ${match.type} ${match.id} with the same account; nothing written`, qboTxnId: match.id, qboTxnType: match.type };
-        const names = accountNames();
+        const names = await accountNames();
         return { state: 'invalid', reason: `QUICKBOOKS: ${match.type} ${match.id} on ${match.date} already codes this to ${match.lines.map((l) => l.accountName).join(' / ')}, not ${lines.map((l) => names.get(l.valueId) ?? l.valueId).join(' / ')}. Fix it in QuickBooks or edit the coding here.` };
       }
       // rule: create, idempotent via requestid
@@ -70,12 +70,12 @@ export async function writeToQbo(entryId: string, decision: { id: string; finalL
 /** MW.ledger.annotate — optional note on the ledger's own transaction (Mercury PATCH note). Off by default. */
 export async function annotateLedger(entryId: string, text: string) {
   const db = getDb();
-  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get()!;
-  if (!isEnabled('MW.ledger.annotate') || !isEnabled('mercury.annotate')) return;
-  const a = getAdapter(e.connectionId);
+  const e = (await db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get())!;
+  if (!await isEnabled('MW.ledger.annotate') || !await isEnabled('mercury.annotate')) return;
+  const a = await getAdapter(e.connectionId);
   if (!a.capabilities.annotate || !a.annotate) return;
   try { await withRun('MW.ledger.annotate', entryId, () => a.annotate!(e.externalId, text, `${entryId}:annotate`)); }
   catch (err) {
-    db.update(schema.ledgerItems).set({ stateReason: `Coded in QuickBooks; ledger note failed — ${(err as Error).message}`, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
+    await db.update(schema.ledgerItems).set({ stateReason: `Coded in QuickBooks; ledger note failed — ${(err as Error).message}`, updatedAt: nowIso() }).where(eq(schema.ledgerItems.id, entryId)).run();
   }
 }

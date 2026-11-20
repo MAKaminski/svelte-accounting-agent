@@ -25,16 +25,16 @@ export function decrypt(blob: string): string {
 }
 
 export const qboTokenStore: QboTokenStore = {
-  get() {
-    const row = getDb().select().from(schema.qboTokens).limit(1).get();
+  async get() {
+    const row = await getDb().select().from(schema.qboTokens).limit(1).get();
     if (!row) return null;
     return { realmId: row.realmId, accessToken: decrypt(row.accessTokenEnc), refreshToken: decrypt(row.refreshTokenEnc), expiresAt: row.expiresAt };
   },
-  save(t) {
+  async save(t) {
     const db = getDb();
     const values = { realmId: t.realmId, accessTokenEnc: encrypt(t.accessToken), refreshTokenEnc: encrypt(t.refreshToken), expiresAt: t.expiresAt, updatedAt: nowIso() };
-    const existing = db.select().from(schema.qboTokens).where(eq(schema.qboTokens.realmId, t.realmId)).get();
-    if (existing) db.update(schema.qboTokens).set(values).where(eq(schema.qboTokens.realmId, t.realmId)).run();
-    else db.insert(schema.qboTokens).values(values).run();
+    const existing = await db.select().from(schema.qboTokens).where(eq(schema.qboTokens.realmId, t.realmId)).get();
+    if (existing) await db.update(schema.qboTokens).set(values).where(eq(schema.qboTokens.realmId, t.realmId)).run();
+    else await db.insert(schema.qboTokens).values(values).run();
   }
 };

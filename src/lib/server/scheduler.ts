@@ -1,12 +1,23 @@
-// In-process scheduler (local single-user app): commit tick 1 s, optional hourly pull, daily COA + backup.
-import { copyFileSync, mkdirSync, existsSync } from 'node:fs';
-import { config, env } from './env';
+// In-process scheduler (one machine): commit tick 1 s, optional hourly pull, daily COA.
+// Every job runs per org, inside that org's RLS context. Backups: Neon point-in-time restore
+// plus a weekly pg_dump from CI (see ARCHITECTURE.md → Infrastructure).
+import { config } from './env';
 import { commitDue } from './processes/decide';
 import { pullEntries } from './processes/pull';
 import { pullCoa } from './processes/coa';
-import { getSqlite } from './db';
+import { getRootDb, initDb, schema, withOrg } from './db';
 
 let started = false;
+
+/** Run fn once per org, each inside withOrg; one org failing doesn't stop the others. */
+export async function forEachOrg(label: string, fn: () => Promise<unknown>) {
+  await initDb();
+  const orgs = await getRootDb().select({ id: schema.orgs.id }).from(schema.orgs);
+  for (const o of orgs) {
+    try { await withOrg(o.id, fn); } catch (e) { console.error(`[scheduler] ${label} ${o.id}`, (e as Error).message); }
+  }
+}
+
 export function startScheduler() {
   if (started || process.env.VITEST) return;
   started = true;
@@ -14,25 +25,10 @@ export function startScheduler() {
   setInterval(async () => {
     if (busy) return;
     busy = true;
-    try { await commitDue(); } catch (e) { console.error('[scheduler] commit', (e as Error).message); } finally { busy = false; }
+    try { await forEachOrg('commit', commitDue); } finally { busy = false; }
   }, 1000).unref();
   if (config.pullIntervalMin > 0) {
-    setInterval(() => pullEntries({ wait: false }).catch((e) => console.error('[scheduler] pull', e.message)), config.pullIntervalMin * 60_000).unref();
+    setInterval(() => void forEachOrg('pull', () => pullEntries({ wait: false })), config.pullIntervalMin * 60_000).unref();
   }
-  const daily = () => {
-    pullCoa().catch((e) => console.error('[scheduler] coa', e.message));
-    backup();
-  };
-  setInterval(daily, 24 * 3600_000).unref();
-  setTimeout(backup, 5_000).unref();
-}
-
-export function backup() {
-  const path = env('DB_PATH', 'data/books.db');
-  if (path === ':memory:' || !existsSync(path)) return;
-  mkdirSync('data/backups', { recursive: true });
-  const dest = `data/backups/books-${new Date().toISOString().slice(0, 10)}.db`;
-  if (existsSync(dest)) return;
-  getSqlite().pragma('wal_checkpoint(TRUNCATE)');
-  copyFileSync(path, dest);
+  setInterval(() => void forEachOrg('coa', pullCoa), 24 * 3600_000).unref();
 }

@@ -15,7 +15,7 @@ import type { LedgerItem } from '../ledgers/types';
 import { validateRecommendation, type RecOutput } from './validate';
 import { enabledAccounts } from './coa';
 import { withRun } from './runs';
-import { recView } from './view';
+import { recView, accountNames } from "./view";
 import { isEnabled } from '../components';
 
 const OutputSchema = z.object({
@@ -52,9 +52,9 @@ export interface RecResult {
 const ZERO: Usage = { fresh: 0, cacheWrite: 0, cacheRead: 0, out: 0 };
 
 /** Level A cache key: hash(inputs + prompt version + model route + account set). */
-export function inputHashFor(input: RecInput, ctx: RecContext): string {
+export async function inputHashFor(input: RecInput, ctx: RecContext): Promise<string> {
   const route = ctx.payoutMatched ? config.modelIntegrator : config.modelWorker;
-  const mode = isEnabled('AI.entry.recommend') ? 'on' : 'off';
+  const mode = await isEnabled('AI.entry.recommend') ? 'on' : 'off';
   return sha256(stableJson(input) + PROMPT_VERSION + route + stableJson(ctx.accounts.map((a) => a.id).sort()) + (ctx.precodedValueId ?? '') + mode);
 }
 
@@ -68,7 +68,7 @@ export async function recommendForInput(input: RecInput, ctx: RecContext): Promi
   const enabled = vctx.enabledValueIds;
   const hasOwnerAnswer = vctx.hasOwnerAnswer;
   const route = ctx.payoutMatched ? config.modelIntegrator : config.modelWorker;
-  const inputHash = inputHashFor(input, ctx);
+  const inputHash = await inputHashFor(input, ctx);
   const ruleResult = (output: RecOutput, model = 'rules'): RecResult =>
     ({ output, model, usage: ZERO, costUsd: 0, ttftMs: 0, e2eMs: 0, inputHash, errors: validateRecommendation(output, vctx) });
 
@@ -88,7 +88,7 @@ export async function recommendForInput(input: RecInput, ctx: RecContext): Promi
   }
 
   // Control plane: recommend agent switched off → manual mode, no model call.
-  if (!isEnabled('AI.entry.recommend')) {
+  if (!await isEnabled('AI.entry.recommend')) {
     return ruleResult({ action: 'ask', lines: [], memo: (input.transaction.merchantName ?? input.transaction.description).slice(0, 200), confidence: 0,
       reasoning: 'The recommendation agent (AI.entry.recommend) is switched off in /system; code this entry by hand.',
       question: 'Recommendation agent is off. Choose the account by hand.' }, 'off:AI.entry.recommend');
@@ -128,17 +128,17 @@ function safeJson(t: string): unknown {
 }
 
 /** Builds the volatile input for an entry from DB state. */
-export function buildInputForEntry(entryId: string): { input: RecInput; ctx: RecContext } {
+export async function buildInputForEntry(entryId: string): Promise<{ input: RecInput; ctx: RecContext }> {
   const db = getDb();
-  const e = db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get();
-  const t = db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, entryId)).get();
+  const e = await db.select().from(schema.ledgerItems).where(eq(schema.ledgerItems.id, entryId)).get();
+  const t = await db.select().from(schema.ledgerTransactions).where(eq(schema.ledgerTransactions.itemId, entryId)).get();
   if (!e || !t) throw new AppError('not_found', `entry ${entryId} not found`, 404);
-  const ev = db.select().from(schema.evidence).where(eq(schema.evidence.entryId, entryId)).orderBy(schema.evidence.createdAt).all();
+  const ev = await db.select().from(schema.evidence).where(eq(schema.evidence.entryId, entryId)).orderBy(schema.evidence.createdAt).all();
   const item = JSON.parse(e.rawJson) as LedgerItem;
-  const source = chartSourceOf(e.connectionId);
+  const source = await chartSourceOf(e.connectionId);
   // Precoded = the ledger applied a native mapping (Slash), or one of our local rules matches (Mercury).
   const ledgerMapped = item.codedBy === 'mapping' ? item.coding?.[0]?.valueId ?? null : null;
-  const local = t.merchantId ? db.select().from(schema.localMappings)
+  const local = t.merchantId ? await db.select().from(schema.localMappings)
     .where(and(eq(schema.localMappings.connectionId, e.connectionId), eq(schema.localMappings.sourceId, t.merchantId))).get() : undefined;
   return {
     input: {
@@ -147,7 +147,7 @@ export function buildInputForEntry(entryId: string): { input: RecInput; ctx: Rec
       ownerAnswers: ev.filter((x) => x.kind === 'owner_answer').map((x) => x.summary)
     },
     ctx: {
-      accounts: enabledAccounts(source).map((a) => ({ id: a.id, name: a.name })),
+      accounts: (await enabledAccounts(source)).map((a) => ({ id: a.id, name: a.name })),
       payoutMatched: ev.some((x) => x.kind === 'payout_row'),
       precodedValueId: ledgerMapped ?? local?.valueId ?? null
     }
@@ -157,20 +157,20 @@ export function buildInputForEntry(entryId: string): { input: RecInput; ctx: Rec
 export async function recommendEntry(entryId: string, opts: { force?: boolean } = {}) {
   return withRun('AI.entry.recommend', entryId, async (runId) => {
     const db = getDb();
-    const { input, ctx } = buildInputForEntry(entryId);
+    const { input, ctx } = await buildInputForEntry(entryId);
     // Exact-input cache (Level A): unchanged hash for this entry → reuse the stored output, no model call.
-    const prev = db.select().from(schema.recommendations).where(eq(schema.recommendations.entryId, entryId)).orderBy(desc(schema.recommendations.createdAt)).limit(1).get();
-    if (!opts.force && prev && prev.inputHash === inputHashFor(input, ctx)) {
+    const prev = await db.select().from(schema.recommendations).where(eq(schema.recommendations.entryId, entryId)).orderBy(desc(schema.recommendations.createdAt)).limit(1).get();
+    if (!opts.force && prev && prev.inputHash === await inputHashFor(input, ctx)) {
       const stored: RecOutput = { action: prev.action, lines: JSON.parse(prev.linesJson), memo: prev.memo, confidence: prev.confidence, reasoning: prev.reasoning, question: prev.question };
-      setStateFromRec(entryId, validateRecommendation(stored, validationContext(input, ctx)));
-      return recView(prev);
+      await setStateFromRec(entryId, validateRecommendation(stored, validationContext(input, ctx)));
+      return recView(prev, await accountNames());
     }
     let result: RecResult;
     try {
       result = await recommendForInput(input, ctx);
     } catch (e) {
       const err = e as AppError;
-      db.update(schema.ledgerItems).set({ localState: 'invalid', stateReason: `${(err.source ?? 'app').toUpperCase()}: ${err.code === 'model_unavailable' ? 'Model unavailable, retry' : err.message}`, updatedAt: nowIso() })
+      await db.update(schema.ledgerItems).set({ localState: 'invalid', stateReason: `${(err.source ?? 'app').toUpperCase()}: ${err.code === 'model_unavailable' ? 'Model unavailable, retry' : err.message}`, updatedAt: nowIso() })
         .where(eq(schema.ledgerItems.id, entryId)).run();
       throw e;
     }
@@ -183,15 +183,15 @@ export async function recommendEntry(entryId: string, opts: { force?: boolean } 
       shadowAutoApprove: result.output.action === 'code' && !result.errors.length && result.output.confidence >= config.shadowThreshold,
       createdAt: nowIso()
     };
-    db.insert(schema.recommendations).values(rec).run();
-    setStateFromRec(entryId, result.errors);
-    return recView(db.select().from(schema.recommendations).where(eq(schema.recommendations.id, rec.id)).get()!);
+    await db.insert(schema.recommendations).values(rec).run();
+    await setStateFromRec(entryId, result.errors);
+    return recView((await db.select().from(schema.recommendations).where(eq(schema.recommendations.id, rec.id)).get())!, await accountNames());
   });
 }
 
-function setStateFromRec(entryId: string, errors: string[]) {
+async function setStateFromRec(entryId: string, errors: string[]) {
   // On success keep research's partial-source notes (e.g. "QuickBooks unavailable") as the reason.
-  getDb().update(schema.ledgerItems).set(errors.length
+  await getDb().update(schema.ledgerItems).set(errors.length
     ? { localState: 'invalid', stateReason: `Invalid: ${errors.join('; ')}`, updatedAt: nowIso() }
     : { localState: 'recommended', updatedAt: nowIso() }
   ).where(and(eq(schema.ledgerItems.id, entryId))).run();

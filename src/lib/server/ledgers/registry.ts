@@ -27,28 +27,28 @@ export function configOf(c: Pick<ConnectionRow, 'configJson'>): ConnectionConfig
 }
 
 /** Which chart of accounts a connection's items are coded against. */
-export function chartSourceOf(connectionId: string): 'slash' | 'qbo' {
-  const c = getDb().select().from(schema.ledgerConnections).where(eq(schema.ledgerConnections.id, connectionId)).get();
+export async function chartSourceOf(connectionId: string): Promise<'slash' | 'qbo'> {
+  const c = await getDb().select().from(schema.ledgerConnections).where(eq(schema.ledgerConnections.id, connectionId)).get();
   return c && capabilitiesOf(c).chart === 'qbo' ? 'qbo' : 'slash';
 }
 
 /** First run: the Slash connection the app has always had (mode follows SLASH_MODE). */
-export function ensureDefaultConnections() {
+export async function ensureDefaultConnections() {
   const db = getDb();
-  if (db.select().from(schema.ledgerConnections).limit(1).get()) return;
-  db.insert(schema.ledgerConnections).values({
+  if (await db.select().from(schema.ledgerConnections).limit(1).get()) return;
+  await db.insert(schema.ledgerConnections).values({
     id: DEFAULT_SLASH_ID, kind: 'slash', name: 'Slash', mode: config.slashMode, status: 'active',
     configJson: '{}', capabilitiesJson: JSON.stringify(CAPABILITIES.slash), createdAt: nowIso(), updatedAt: nowIso()
   }).run();
 }
 
-export function listConnections(): ConnectionRow[] {
-  ensureDefaultConnections();
-  return getDb().select().from(schema.ledgerConnections).all().sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+export async function listConnections(): Promise<ConnectionRow[]> {
+  await ensureDefaultConnections();
+  return (await getDb().select().from(schema.ledgerConnections).all()).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
-export function getConnection(id: string): ConnectionRow {
-  const c = getDb().select().from(schema.ledgerConnections).where(eq(schema.ledgerConnections.id, id)).get();
+export async function getConnection(id: string): Promise<ConnectionRow> {
+  const c = await getDb().select().from(schema.ledgerConnections).where(eq(schema.ledgerConnections.id, id)).get();
   if (!c) throw new AppError('not_found', `ledger connection ${id} not found`, 404);
   return c;
 }
@@ -64,12 +64,12 @@ export interface AddConnectionInput {
   by?: string;
 }
 
-export function addConnection(inp: AddConnectionInput): ConnectionRow {
+export async function addConnection(inp: AddConnectionInput): Promise<ConnectionRow> {
   if (!CAPABILITIES[inp.kind]) throw new AppError('bad_kind', `kind must be one of ${Object.keys(CAPABILITIES).join(', ')}`, 400);
   if (!inp.name?.trim()) throw new AppError('bad_name', 'name is required', 400);
   const mode = inp.mode ?? 'fixture';
   if (inp.kind === 'mercury' && mode === 'live' && !inp.token) throw new AppError('token_required', 'A live Mercury connection needs a token (read-only is enough)', 400);
-  ensureDefaultConnections();
+  await ensureDefaultConnections();
   const caps = CAPABILITIES[inp.kind];
   const now = nowIso();
   const row = {
@@ -80,14 +80,14 @@ export function addConnection(inp: AddConnectionInput): ConnectionRow {
     bankFeedConfirmedAt: inp.bankFeedConfirmed ? now : null,
     createdAt: now, updatedAt: now
   };
-  getDb().insert(schema.ledgerConnections).values(row).run();
+  await getDb().insert(schema.ledgerConnections).values(row).run();
   adapters.delete(row.id);
-  return getConnection(row.id);
+  return await getConnection(row.id);
 }
 
-export function updateConnection(id: string, patch: { config?: ConnectionConfig; bankFeedConfirmed?: boolean; name?: string; by?: string }): ConnectionRow {
-  const c = getConnection(id);
-  getDb().update(schema.ledgerConnections).set({
+export async function updateConnection(id: string, patch: { config?: ConnectionConfig; bankFeedConfirmed?: boolean; name?: string; by?: string }): Promise<ConnectionRow> {
+  const c = await getConnection(id);
+  await getDb().update(schema.ledgerConnections).set({
     name: patch.name ?? c.name,
     configJson: patch.config ? JSON.stringify({ ...configOf(c), ...patch.config }) : c.configJson,
     ...(patch.bankFeedConfirmed !== undefined ? {
@@ -97,7 +97,7 @@ export function updateConnection(id: string, patch: { config?: ConnectionConfig;
     updatedAt: nowIso()
   }).where(eq(schema.ledgerConnections.id, id)).run();
   adapters.delete(id);
-  return getConnection(id);
+  return await getConnection(id);
 }
 
 /** Why a connection can't be activated yet (empty = ready). */
@@ -113,26 +113,26 @@ export function activationBlockers(c: ConnectionRow): string[] {
   return out;
 }
 
-export function setConnectionStatus(id: string, active: boolean): ConnectionRow {
-  const c = getConnection(id);
+export async function setConnectionStatus(id: string, active: boolean): Promise<ConnectionRow> {
+  const c = await getConnection(id);
   if (active) {
     const blockers = activationBlockers(c);
     if (blockers.length) throw new AppError('not_ready', blockers.join('; '), 409);
   }
-  getDb().update(schema.ledgerConnections).set({ status: active ? 'active' : 'inactive', updatedAt: nowIso() }).where(eq(schema.ledgerConnections.id, id)).run();
-  return getConnection(id);
+  await getDb().update(schema.ledgerConnections).set({ status: active ? 'active' : 'inactive', updatedAt: nowIso() }).where(eq(schema.ledgerConnections.id, id)).run();
+  return await getConnection(id);
 }
 
-export function recordPull(id: string, error: string | null) {
-  getDb().update(schema.ledgerConnections).set({ lastPullAt: nowIso(), lastError: error, updatedAt: nowIso() }).where(eq(schema.ledgerConnections.id, id)).run();
+export async function recordPull(id: string, error: string | null) {
+  await getDb().update(schema.ledgerConnections).set({ lastPullAt: nowIso(), lastError: error, updatedAt: nowIso() }).where(eq(schema.ledgerConnections.id, id)).run();
 }
 
 const adapters = new Map<string, LedgerAdapter>();
 
-export function getAdapter(connectionId: string): LedgerAdapter {
+export async function getAdapter(connectionId: string): Promise<LedgerAdapter> {
   const cached = adapters.get(connectionId);
   if (cached) return cached;
-  const c = getConnection(connectionId);
+  const c = await getConnection(connectionId);
   const ports = getPorts();
   let a: LedgerAdapter;
   if (c.kind === 'slash') a = new SlashAdapter(ports.slash);

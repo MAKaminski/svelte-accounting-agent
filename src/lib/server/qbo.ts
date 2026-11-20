@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppError } from './util';
 import { env } from './env';
+import { currentOrgId } from './db';
 
 export interface QboPurchase { id: string; date: string; vendorName: string; amountCents: number; accountName: string }
 export interface QboVendor { id: string; name: string }
@@ -10,7 +11,7 @@ export interface QboAccount { id: string; name: string; type: string; active: bo
 
 export interface QboPort {
   readonly mode: 'fixture' | 'live';
-  connected(): boolean;
+  connected(): Promise<boolean>;
   listVendors(): Promise<QboVendor[]>;
   purchasesByVendor(vendorId: string): Promise<QboPurchase[]>;
   listAccounts(): Promise<QboAccount[]>;
@@ -27,7 +28,7 @@ export class FixtureQbo implements QboPort {
     this.vendors = JSON.parse(readFileSync(resolve(dir, 'vendors.json'), 'utf8'));
     this.purchases = JSON.parse(readFileSync(resolve(dir, 'purchases.json'), 'utf8'));
   }
-  connected() { return true; }
+  async connected() { return true; }
   async listVendors() {
     if (this.failing) throw new AppError('qbo_unavailable', 'QuickBooks fixture set to fail', 502, 'qbo');
     return structuredClone(this.vendors);
@@ -47,8 +48,8 @@ export const QBO_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2';
 export const QBO_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 
 export interface QboTokenStore {
-  get(): { realmId: string; accessToken: string; refreshToken: string; expiresAt: string } | null;
-  save(t: { realmId: string; accessToken: string; refreshToken: string; expiresAt: string }): void;
+  get(): Promise<{ realmId: string; accessToken: string; refreshToken: string; expiresAt: string } | null>;
+  save(t: { realmId: string; accessToken: string; refreshToken: string; expiresAt: string }): Promise<void>;
 }
 
 /** Live client: OAuth 2.0 with rotating refresh tokens, read-only queries, 24 h cache, 500/min limiter, 10 s timeout. */
@@ -57,10 +58,10 @@ export class LiveQbo implements QboPort {
   private cache = new Map<string, { at: number; value: unknown }>();
   private window: number[] = [];
   constructor(private tokens: QboTokenStore) {}
-  connected() { return this.tokens.get() !== null; }
+  async connected() { return (await this.tokens.get()) !== null; }
 
   private async accessToken(): Promise<{ token: string; realmId: string }> {
-    const t = this.tokens.get();
+    const t = await this.tokens.get();
     if (!t) throw new AppError('qbo_not_connected', 'QuickBooks is not connected (Settings → Connect QuickBooks)', 503, 'qbo');
     if (Date.parse(t.expiresAt) - Date.now() > 60_000) return { token: t.accessToken, realmId: t.realmId };
     const res = await fetch(QBO_TOKEN_URL, {
@@ -75,12 +76,13 @@ export class LiveQbo implements QboPort {
     if (!res.ok) throw new AppError('qbo_refresh_failed', `QuickBooks token refresh failed (${res.status}); reconnect in Settings`, 502, 'qbo');
     const j = await res.json() as { access_token: string; refresh_token: string; expires_in: number };
     const next = { realmId: t.realmId, accessToken: j.access_token, refreshToken: j.refresh_token, expiresAt: new Date(Date.now() + j.expires_in * 1000).toISOString() };
-    this.tokens.save(next); // refresh tokens rotate: always persist the new one
+    await this.tokens.save(next); // refresh tokens rotate: always persist the new one
     return { token: next.accessToken, realmId: next.realmId };
   }
 
   private async query<T>(sql: string): Promise<T[]> {
-    const hit = this.cache.get(sql);
+    const ck = `${currentOrgId()}|${sql}`;
+    const hit = this.cache.get(ck);
     if (hit && Date.now() - hit.at < 24 * 3600_000) return hit.value as T[];
     const now = Date.now();
     this.window = this.window.filter((t) => now - t < 60_000);
@@ -97,7 +99,7 @@ export class LiveQbo implements QboPort {
         if (!res.ok) throw new AppError('qbo_error', `QuickBooks ${res.status}`, 502, 'qbo');
         const j = await res.json() as { QueryResponse: Record<string, T[]> };
         const rows = Object.values(j.QueryResponse).find(Array.isArray) ?? [];
-        this.cache.set(sql, { at: Date.now(), value: rows });
+        this.cache.set(ck, { at: Date.now(), value: rows });
         return rows;
       } catch (e) { lastErr = e; }
     }

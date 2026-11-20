@@ -40,11 +40,11 @@ export async function importPayouts(csv: string, channel = 'whatnot', opts: { wa
     const { rows, errors } = parsePayoutCsv(csv, channel);
     if (errors.length) throw new AppError('bad_csv', errors.join('\n'), 400);
     const db = getDb();
-    db.transaction(() => {
-      for (const r of rows) db.insert(schema.payoutRows).values(r).onConflictDoUpdate({ target: schema.payoutRows.id, set: r }).run();
+    await db.transaction(async (tx) => {
+      for (const r of rows) await tx.insert(schema.payoutRows).values(r).onConflictDoUpdate({ target: [schema.payoutRows.orgId, schema.payoutRows.id], set: r }).run();
     });
     // Deposits waiting for review may now match a payout row: re-research them.
-    const credits = db.select({ id: schema.ledgerItems.id }).from(schema.ledgerItems)
+    const credits = await db.select({ id: schema.ledgerItems.id }).from(schema.ledgerItems)
       .where(and(gt(schema.ledgerItems.amountCents, 0), inArray(schema.ledgerItems.localState, ['fetched', 'researched', 'recommended', 'invalid']))).all();
     for (const c of credits) enqueue(() => researchAndRecommend(c.id).then(() => undefined));
     if (opts.wait) await drain();

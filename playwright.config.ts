@@ -11,10 +11,10 @@ export default defineConfig({
     launchOptions: existsSync(local) ? { executablePath: local } : {}
   },
   webServer: {
-    command: 'rm -f data/e2e.db* && pnpm db:migrate && pnpm db:seed && pnpm dev --port 5174 --strictPort',
+    command: 'pnpm db:reset && pnpm db:seed && pnpm dev --port 5174 --strictPort',
     url: 'http://localhost:5174/api/health',
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { DB_PATH: 'data/e2e.db', UNDO_WINDOW_MS: '1500', APP_PASSCODE: '' }
+    env: { DATABASE_URL: 'pglite:data/e2e-pglite', APP_DB_ROLE: 'books_app', UNDO_WINDOW_MS: '1500', APP_PASSCODE: '' }
   }
 });

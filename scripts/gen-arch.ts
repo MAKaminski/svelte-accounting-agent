@@ -2,7 +2,7 @@
 // pnpm arch:check  → fail if blocks are stale or the registries don't tick and tie.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
-import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import * as schema from '../src/lib/server/db/schema';
 import { commands } from '../src/lib/commands';
 
@@ -17,7 +17,7 @@ type Registry = {
 };
 
 const reg = parse(readFileSync('processes.yaml', 'utf8')) as Registry;
-const tables = Object.values(schema).filter((v): v is SQLiteTable => v instanceof SQLiteTable);
+const tables = Object.values(schema).filter((v): v is PgTable => v instanceof PgTable);
 const esc = (s: string) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const code = (s: string) => '`' + s + '`';
 
@@ -35,10 +35,11 @@ const blocks: Record<string, string> = {};
   }
   for (const c of cfgs) {
     const fkCols = new Set(c.foreignKeys.flatMap((fk) => fk.reference().columns.map((x) => x.name)));
+    const pkCols = new Set(c.primaryKeys.flatMap((pk) => pk.columns.map((x) => x.name)));
     lines.push(`  ${c.name} {`);
     for (const col of c.columns) {
-      const t = col.columnType.includes('Integer') ? 'int' : col.columnType.includes('Real') ? 'real' : 'text';
-      const key = col.primary ? ' PK' : fkCols.has(col.name) ? ' FK' : '';
+      const t = col.columnType.includes('Integer') ? 'int' : col.columnType.includes('Double') ? 'float8' : col.columnType.includes('Boolean') ? 'bool' : 'text';
+      const key = col.primary || pkCols.has(col.name) ? ' PK' : fkCols.has(col.name) ? ' FK' : '';
       lines.push(`    ${t} ${col.name}${key}`);
     }
     lines.push('  }');

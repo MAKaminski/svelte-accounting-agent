@@ -1,6 +1,7 @@
 <script lang="ts">
   // Lazy-loaded on /system only. Deterministic lane layout: one column per layer, so the
-  // picture is stable between loads (no force layout jitter).
+  // picture is stable between loads (no force layout jitter). Opens anchored top-left at a readable
+  // zoom (Front-end → AI in view); pan right for tables, tools and external systems.
   import { SvelteFlow, Background, Controls, MiniMap, type Node, type Edge } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import type { SystemGraph } from '$lib/types';
@@ -13,6 +14,9 @@
   const LANE_NAME: Record<string, string> = { FE: 'Front-end', MW: 'Middleware', AI: 'AI', IN: 'Infra', BE: 'Back-end (tables)', TOOLS: 'Tools', EXT: 'External' };
   const COL_W = 230;
   const ROW_H = 54;
+  // Back-end is two columns wide (21 tables), so lanes after it shift right by one column.
+  const WIDE = 'BE';
+  const laneX = (i: number) => (i + (i > LANES.indexOf(WIDE) ? 1 : 0)) * COL_W;
 
   const visible = $derived(new Set(graph.nodes.filter((n) => (showViews || !isView(n.id) || n.id === selected) && (filter === 'all' || n.kind === filter || n.id === selected)).map((n) => n.id)));
 
@@ -21,8 +25,8 @@
   $effect(() => {
     const perLane = new Map<string, number>();
     const ns: Node[] = LANES.map((l, i) => ({
-      id: `lane:${l}`, position: { x: i * COL_W, y: -50 }, data: { label: LANE_NAME[l] }, draggable: false, selectable: false,
-      class: 'lane-label', style: `width:${COL_W - 30}px;`
+      id: `lane:${l}`, position: { x: laneX(i), y: -50 }, data: { label: LANE_NAME[l] }, draggable: false, selectable: false,
+      class: 'lane-label', style: `width:${(l === WIDE ? 2 : 1) * COL_W - 30}px;`
     }));
     for (const n of graph.nodes) {
       if (!visible.has(n.id)) continue;
@@ -30,7 +34,8 @@
       const row = perLane.get(n.layer) ?? 0;
       perLane.set(n.layer, row + 1);
       ns.push({
-        id: n.id, position: { x: lane * COL_W, y: row * ROW_H },
+        id: n.id,
+        position: n.layer === WIDE ? { x: laneX(lane) + (row % 2) * COL_W, y: Math.floor(row / 2) * ROW_H } : { x: laneX(lane), y: row * ROW_H },
         data: { label: n.label.replace(/^table:|^ext:/, '') },
         class: `node k-${n.kind} s-${n.status}${selected === n.id ? ' sel' : ''}`,
         style: `width:${COL_W - 30}px;`
@@ -47,9 +52,9 @@
 </script>
 
 <div class="wrap" role="region" aria-label="Component graph">
-  <SvelteFlow bind:nodes bind:edges fitView fitViewOptions={{ minZoom: 0.75, maxZoom: 1.1, padding: 0.05 }} minZoom={0.2} nodesConnectable={false} onnodeclick={({ node }) => { if (!node.id.startsWith('lane:')) selected = node.id; }} onpaneclick={() => (selected = null)}>
+  <SvelteFlow bind:nodes bind:edges initialViewport={{ x: 24, y: 64, zoom: 0.8 }} minZoom={0.2} nodesConnectable={false} onnodeclick={({ node }) => { if (!node.id.startsWith('lane:')) selected = node.id; }} onpaneclick={() => (selected = null)}>
     <Background gap={24} />
-    <Controls showLock={false} position="top-left" />
+    <Controls showLock={false} position="top-right" />
     <MiniMap pannable zoomable position="bottom-right" />
   </SvelteFlow>
 </div>

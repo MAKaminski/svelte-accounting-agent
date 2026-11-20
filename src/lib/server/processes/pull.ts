@@ -21,10 +21,10 @@ const localFor = (i: LedgerItem): LocalState => (i.status === 'in_review' ? 'fet
 export async function pullEntries(opts: { since?: string; dryRun?: boolean; wait?: boolean; connectionId?: string } = {}) {
   return withRun('MW.ledger.pull', opts.connectionId ?? null, async () => {
     const db = getDb();
-    const connections = listConnections().filter((c) => c.status === 'active' && (!opts.connectionId || c.id === opts.connectionId));
+    const connections = (await listConnections()).filter((c) => c.status === 'active' && (!opts.connectionId || c.id === opts.connectionId));
     if (opts.connectionId && !connections.length) throw new AppError('not_active', `connection ${opts.connectionId} is not active (or does not exist)`, 409);
     // Load each needed chart of accounts once (Slash values; QuickBooks accounts for qbo_direct ledgers).
-    const have = new Set(db.select({ s: schema.dimensionValues.source }).from(schema.dimensionValues).all().map((r) => r.s));
+    const have = new Set((await db.select({ s: schema.dimensionValues.source }).from(schema.dimensionValues).all()).map((r) => r.s));
     if (connections.some((c) => !have.has(capabilitiesOf(c).chart === 'qbo' ? 'qbo' : 'slash'))) await pullCoa();
 
     let pulled = 0;
@@ -36,12 +36,12 @@ export async function pullEntries(opts: { since?: string; dryRun?: boolean; wait
     for (const c of connections) {
       let items: LedgerItem[], history: LedgerItem[];
       try {
-        const adapter = getAdapter(c.id);
+        const adapter = await getAdapter(c.id);
         [items, history] = await Promise.all([adapter.listItems({ since: opts.since }), adapter.listHistory()]);
       } catch (e) {
         const msg = (e as Error).message;
         errors.push(`${c.name}: ${msg}`);
-        if (!opts.dryRun) recordPull(c.id, msg);
+        if (!opts.dryRun) await recordPull(c.id, msg);
         if (connections.length === 1) throw e;
         continue;
       }
@@ -53,30 +53,30 @@ export async function pullEntries(opts: { since?: string; dryRun?: boolean; wait
         for (const [id, name] of merchants) if (await isNewMerchant(id, name)) newMerchants++;
         continue;
       }
-      upsertItems(c, [...items, ...history], toProcess);
+      await upsertItems(c, [...items, ...history], toProcess);
       for (const i of items) reviewIds.add(i.externalId);
-      recordPull(c.id, null);
+      await recordPull(c.id, null);
       for (const [id, name] of merchants) if (await isNewMerchant(id, name)) newMerchants++;
     }
 
     if (opts.dryRun) return { pulled, newMerchants, dryRun: true, entries: [] };
     for (const id of toProcess) enqueue(() => researchAndRecommend(id));
     if (opts.wait) await drain();
-    return { pulled, newMerchants, dryRun: false, entries: listEntries().filter((e) => reviewIds.has(e.id)), ...(errors.length ? { errors } : {}) };
+    return { pulled, newMerchants, dryRun: false, entries: (await listEntries()).filter((e) => reviewIds.has(e.id)), ...(errors.length ? { errors } : {}) };
   });
 }
 
-function upsertItems(c: ConnectionRow, all: LedgerItem[], toProcess: string[]) {
+async function upsertItems(c: ConnectionRow, all: LedgerItem[], toProcess: string[]) {
   const db = getDb();
-  const existing = new Map(db.select().from(schema.ledgerItems)
-    .where(and(eq(schema.ledgerItems.connectionId, c.id), inArray(schema.ledgerItems.externalId, all.map((i) => i.externalId)))).all()
+  const existing = new Map((await db.select().from(schema.ledgerItems)
+    .where(and(eq(schema.ledgerItems.connectionId, c.id), inArray(schema.ledgerItems.externalId, all.map((i) => i.externalId)))).all())
     .map((r) => [r.externalId, r]));
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const i of all) {
       const row = existing.get(i.externalId);
       const raw = stableJson(i);
       if (!row) {
-        db.insert(schema.ledgerItems).values({
+        await tx.insert(schema.ledgerItems).values({
           id: i.externalId, connectionId: c.id, externalId: i.externalId, ledgerStatus: i.status, localState: localFor(i),
           amountCents: i.amountCents, memo: i.memo, rawJson: raw, createdAt: i.createdAt, updatedAt: nowIso()
         }).run();
@@ -86,18 +86,18 @@ function upsertItems(c: ConnectionRow, all: LedgerItem[], toProcess: string[]) {
         if (i.status === 'synced' && (localState === 'ready' || localState === 'coded')) localState = 'synced';
         // The ledger recoded it (e.g. a mapping was applied): re-research before anyone decides on stale data.
         if (i.status === 'in_review' && PRE_DECISION.includes(localState)) { localState = 'fetched'; toProcess.push(row.id); }
-        db.update(schema.ledgerItems).set({ ledgerStatus: i.status, localState, rawJson: raw, amountCents: i.amountCents, updatedAt: nowIso() })
+        await tx.update(schema.ledgerItems).set({ ledgerStatus: i.status, localState, rawJson: raw, amountCents: i.amountCents, updatedAt: nowIso() })
           .where(eq(schema.ledgerItems.id, row.id)).run();
       } else if (i.status === 'in_review' && row.localState === 'fetched') {
         toProcess.push(row.id); // previous pipeline run never finished
       }
       const m = i.tx.merchant;
-      const tx = {
+      const txRow = {
         id: `${c.id}:${i.tx.id}`, itemId: row?.id ?? i.externalId, connectionId: c.id, kindHint: i.tx.kindHint ?? null,
         date: i.tx.date, description: i.tx.description, merchantId: m?.id ?? null, merchantName: m?.name ?? null,
         mcc: m?.mcc ?? null, categoryId: m?.categoryId ?? null, amountCents: i.tx.amountCents, rawJson: stableJson(i.tx)
       };
-      db.insert(schema.ledgerTransactions).values(tx).onConflictDoUpdate({ target: schema.ledgerTransactions.id, set: tx }).run();
+      await tx.insert(schema.ledgerTransactions).values(txRow).onConflictDoUpdate({ target: [schema.ledgerTransactions.orgId, schema.ledgerTransactions.id], set: txRow }).run();
     }
   });
 }
