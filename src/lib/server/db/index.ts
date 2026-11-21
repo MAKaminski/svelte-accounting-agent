@@ -54,6 +54,37 @@ export function resolveDbUrl(url = env('DATABASE_URL') || 'pglite:data/pglite'):
   return url;
 }
 
+/**
+ * A postgres-js reserved connection lacks what Drizzle's postgres-js driver expects from a pool:
+ * `options` (it patches type parsers there) and `begin`/`savepoint` (transactions). Supply them so every
+ * statement — including transactions — stays on this one connection, which holds the company's session
+ * settings (app.org_id, SET ROLE).
+ */
+type Reserved = { unsafe: (q: string) => Promise<unknown> } & Record<string, unknown>;
+function asDrizzleClient(conn: Reserved, options: unknown) {
+  let sp = 0;
+  const wrap = async <T>(open: string, ok: string, undo: string, fn: (c: Reserved) => Promise<T>): Promise<T> => {
+    await conn.unsafe(open);
+    try {
+      const r = await fn(c);
+      await conn.unsafe(ok);
+      return r;
+    } catch (e) {
+      await conn.unsafe(undo);
+      throw e;
+    }
+  };
+  const c: Reserved = Object.assign(conn, {
+    options,
+    begin: <T>(fn: (c: Reserved) => Promise<T>) => wrap('begin', 'commit', 'rollback', fn),
+    savepoint: <T>(fn: (c: Reserved) => Promise<T>) => {
+      const name = `sp_${++sp}`;
+      return wrap(`savepoint ${name}`, `release savepoint ${name}`, `rollback to savepoint ${name}`, fn);
+    }
+  });
+  return c;
+}
+
 /** Open (and migrate) a database. `url`: postgres://… (Neon, direct endpoint), `pglite:memory`, or `pglite:<dir>`. */
 export async function openDb(urlIn?: string, opts: { migrate?: boolean } = {}): Promise<Root> {
   const url = resolveDbUrl(urlIn);
@@ -83,7 +114,7 @@ export async function openDb(urlIn?: string, opts: { migrate?: boolean } = {}): 
       kind: 'postgres', db, close: () => client.end(),
       reserve: async () => {
         const conn = await client.reserve();
-        return { db: drizzle(Object.assign(conn, { options: client.options }) as never, { schema }) as unknown as DB, exec: async (q) => { await conn.unsafe(q); }, release: () => conn.release() };
+        return { db: drizzle(asDrizzleClient(conn as unknown as Reserved, client.options) as never, { schema }) as unknown as DB, exec: async (q) => { await conn.unsafe(q); }, release: () => conn.release() };
       }
     };
   }

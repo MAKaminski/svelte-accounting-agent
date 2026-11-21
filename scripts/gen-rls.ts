@@ -6,7 +6,8 @@ import { TENANT_TABLES } from '../src/lib/server/db/schema';
 const parts = [
   `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'books_app') THEN CREATE ROLE books_app NOLOGIN; END IF; END $$;`,
   // The app connects as the owner and drops to books_app per org context (SET ROLE), so the owner must be a member.
-  `DO $$ BEGIN IF NOT pg_has_role(current_user, 'books_app', 'MEMBER') THEN EXECUTE format('GRANT books_app TO %I', current_user); END IF; END $$;`,
+  // PG16+: a CREATEROLE creator gets ADMIN on the new role but not SET, so check SET, and grant it explicitly.
+  `DO $$ BEGIN IF NOT pg_has_role(current_user, 'books_app', 'SET') THEN EXECUTE format('GRANT books_app TO %I WITH SET TRUE', current_user); END IF; END $$;`,
   `GRANT USAGE ON SCHEMA public TO books_app;`,
   `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO books_app;`,
   `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO books_app;`,
