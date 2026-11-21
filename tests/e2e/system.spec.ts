@@ -25,7 +25,7 @@ test('switching off the recommend agent → manual mode, no model calls; back on
   // Force a fresh recommendation for one entry: the agent is off, so it must be a manual placeholder.
   const rec = await (await request.post('/api/entries/ae_0057/recommend', { data: {} })).json();
   expect(rec.model).toBe('off:AI.entry.recommend');
-  await page.goto('/queue');
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
   await expect(page.getByText('Manual (agent off)').first()).toBeVisible();
 
   const on = await request.post('/api/system/components/AI.entry.recommend/state', { data: { enabled: true } });

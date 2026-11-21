@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' });
 
 test('queue shows recommendations with every row actionable', async ({ page, request }) => {
   const expected = (await (await request.get('/api/entries?state=recommended')).json()).length; // specs share one seeded DB
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'networkidle' }); // hydrated before clicking
   await expect(page).toHaveURL(/\/queue/);
   await expect(page.getByRole('heading', { name: 'Review queue' })).toBeVisible();
   expect(expected).toBeGreaterThanOrEqual(30); // seeded: 23 Slash + 8 Mercury
@@ -15,7 +15,7 @@ test('queue shows recommendations with every row actionable', async ({ page, req
 });
 
 test('approve → toast within 100 ms → committed to Slash after the undo window', async ({ page, request }) => {
-  await page.goto('/queue');
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
   const row = page.locator('.row:not(.head)', { hasText: 'Canva Pro' });
   const id = (await row.locator('a.merchant').getAttribute('href'))!.split('/').pop()!;
   const t0 = Date.now();
@@ -29,7 +29,7 @@ test('approve → toast within 100 ms → committed to Slash after the undo wind
 });
 
 test('undo inside the window → back in review, never sent', async ({ page, request }) => {
-  await page.goto('/queue');
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
   const row = page.locator('.row:not(.head)', { hasText: 'Google Workspace' });
   const id = (await row.locator('a.merchant').getAttribute('href'))!.split('/').pop()!;
   await row.getByRole('button', { name: /Approve/ }).click();
@@ -43,7 +43,7 @@ test('undo inside the window → back in review, never sent', async ({ page, req
 });
 
 test('question flow: ask on entry → answer on /questions', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
   await page.getByRole('link', { name: 'AMZN Mktp US' }).first().click();
   await expect(page.getByText('The agent is not sure')).toBeVisible();
   await page.getByRole('button', { name: 'Ask', exact: true }).click();

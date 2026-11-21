@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 // Runs with the dev bypass (AUTH_GOOGLE_ID empty): the browser is owner@local of the default company.
 test('members: invite, change role, cancel; token shown once then revoked', async ({ page }) => {
-  await page.goto('/settings/members');
+  await page.goto('/settings/members', { waitUntil: 'networkidle' }); // hydrated before clicking
   await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
   await expect(page.getByLabel('Members').getByText('owner@local')).toBeVisible();
   // The only owner can't change or remove themself.
@@ -40,7 +40,7 @@ test('members: invite, change role, cancel; token shown once then revoked', asyn
 });
 
 test('nav shows the signed-in identity and a Members link for owners', async ({ page }) => {
-  await page.goto('/queue');
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
   await expect(page.getByText('owner@local · owner')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();
 });
