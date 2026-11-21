@@ -83,7 +83,7 @@ export async function openDb(urlIn?: string, opts: { migrate?: boolean } = {}): 
       kind: 'postgres', db, close: () => client.end(),
       reserve: async () => {
         const conn = await client.reserve();
-        return { db: drizzle(conn as never, { schema }) as unknown as DB, exec: async (q) => { await conn.unsafe(q); }, release: () => conn.release() };
+        return { db: drizzle(Object.assign(conn, { options: client.options }) as never, { schema }) as unknown as DB, exec: async (q) => { await conn.unsafe(q); }, release: () => conn.release() };
       }
     };
   }

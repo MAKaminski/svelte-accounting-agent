@@ -14,7 +14,7 @@ primary_region = "iad"
   SLASH_MODE = "fixture"
   QBO_MODE = "fixture"
   PULL_INTERVAL_MIN = "60"
-  AUTH_URL = "https://laceluxx-books.fly.dev/auth"
+  AUTH_URL = "https://laceluxx-books.fly.dev"
 
 [deploy]
   # Migrations run as the owner role before the new version takes traffic.
