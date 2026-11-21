@@ -45,6 +45,8 @@
     "@anthropic-ai/sdk": "^1.10.0",
     "@auth/sveltekit": "1.11.3",
     "@electric-sql/pglite": "^0.5.17",
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9",
     "@xyflow/svelte": "^2.0.2",
     "drizzle-orm": "^0.45.4",
     "postgres": "^4.1.1",

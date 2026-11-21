@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import * as schema from './schema';
+import { env } from '../env';
 import './compat';
 
 export type DB = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -38,8 +39,24 @@ const ident = (s: string) => {
   return s;
 };
 
-/** Open (and migrate) a database. `url`: postgres://… (Neon), `pglite:memory`, or `pglite:<dir>`. */
-export async function openDb(url = process.env.DATABASE_URL ?? 'pglite:data/pglite', opts: { migrate?: boolean } = {}): Promise<Root> {
+/**
+ * The database URL to use. RLS needs session settings (app.org_id, role), which a transaction-pooling
+ * endpoint (Neon "-pooler" host / PgBouncer) drops between statements — so a pooled URL is swapped for
+ * DATABASE_URL_UNPOOLED (what `neon deploy` writes), and refused if there is none.
+ */
+export function resolveDbUrl(url = env('DATABASE_URL') || 'pglite:data/pglite'): string {
+  if (url.startsWith('pglite:')) return url;
+  if (/-pooler\./.test(url)) {
+    const direct = env('DATABASE_URL_UNPOOLED');
+    if (!direct || /-pooler\./.test(direct)) throw new Error('DATABASE_URL is a pooled endpoint; row-level security needs the direct one. Set DATABASE_URL_UNPOOLED (or a non-pooler DATABASE_URL).');
+    return direct;
+  }
+  return url;
+}
+
+/** Open (and migrate) a database. `url`: postgres://… (Neon, direct endpoint), `pglite:memory`, or `pglite:<dir>`. */
+export async function openDb(urlIn?: string, opts: { migrate?: boolean } = {}): Promise<Root> {
+  const url = resolveDbUrl(urlIn);
   let r: Root;
   if (url.startsWith('pglite:')) {
     const { PGlite } = await import('@electric-sql/pglite');
