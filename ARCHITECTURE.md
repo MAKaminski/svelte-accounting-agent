@@ -1,6 +1,6 @@
-# LaceLuxx Books — Architecture
+# Accounting Agent — Architecture
 
-Codes LaceLuxx's Slash transactions to QuickBooks accounts, explains why, asks the owner when unsure, and learns rules so a question is never asked twice. Written 2026-11-19 from the build brief. Generated blocks (`<!-- gen:* -->`) come from `src/lib/commands.ts`, `processes.yaml` and the Drizzle schema; run `pnpm arch` to refresh and `pnpm arch:check` before a PR.
+Codes a company's Slash and Mercury transactions to QuickBooks accounts, explains why, asks the owner when unsure, and learns rules so a question is never asked twice. Written 2026-11-19 from the build brief. Generated blocks (`<!-- gen:* -->`) come from `src/lib/commands.ts`, `processes.yaml` and the Drizzle schema; run `pnpm arch` to refresh and `pnpm arch:check` before a PR.
 
 ## 1. Interface contract
 
@@ -35,7 +35,7 @@ Codes LaceLuxx's Slash transactions to QuickBooks accounts, explains why, asks t
 | `/settings/members` | Members + pending invites (role, last seen), invite, change role, remove; API tokens (shown once, revoke) | Nav (owners) | `GET /api/members`, `GET /api/tokens` | canvas `Members` |
 | Nav company switcher | Companies you belong to; switching reloads in that company | Every screen (hidden with one company) | `GET /api/orgs`, `POST /api/orgs/:id/select` | canvas `Members` (header) |
 
-Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`, `States`, `System`, `Ledgers`, `Members` artboards). Every screen has empty, loading (skeleton / progress bar), error (source-tagged: Slash, QuickBooks, Model, with Retry), partial (invalid rows red, rest usable) and success states.
+Designed mockups: Claude design canvas "Accounting Agent screens". The v2 dark artboards (`Tokens`, `Queue v2`, `Entry v2`, `System v2`, `Login v2`) are the current design; the earlier light artboards (`Main`, `Entry`, `States`, `System`, `Ledgers`, `Members`) remain for layout and states. Screenshots of the built screens: `docs/media/` (regenerate with `pnpm shots` and `pnpm gifs`). Every screen has empty, loading (skeleton / progress bar), error (source-tagged: Slash, QuickBooks, Model, with Retry), partial (invalid rows red, rest usable) and success states.
 
 ### Actions
 <!-- gen:actions -->
@@ -130,6 +130,20 @@ error: The recommendation is a question, not a coding; answer it or pass --lines
 $ books entry approve ae_0050 --yes
 Coded ae_0050 → Shipping & Postage · marked ready to sync
 ```
+
+### Design system
+
+Brief: `docs/design/brief.md`. One stylesheet, `src/app.css`, holds every token; screens only reference tokens.
+
+| Part | Rule |
+|---|---|
+| Surfaces | Four layered "ink" levels (page, panel, raised, overlay) with hairline outlines; depth from layering, not heavy shadows |
+| Accent | One indigo→violet gradient, used only for the primary action, active nav item, focus and the confidence meter |
+| Status | Mint = money in / passed, amber = needs you, rose = failed |
+| Type | Inter Variable (interface) and JetBrains Mono (amounts, ids), self-hosted; tabular numerals for money |
+| Themes | Dark by default; light via `data-theme="light"` (toggle in the nav, remembered in `localStorage`) |
+| Motion | 120–180 ms, only in response to an action; off under `prefers-reduced-motion` |
+| Shared classes | `.btn` (+ `primary`, `ghost`, `danger`, `sm`), `.chip`, `.card`, `.badge`, `.meter`, `.avatar`, `.kbd`, `.skeleton` — a screen adds layout, not new control styles |
 
 ### Screen flow
 
@@ -996,12 +1010,12 @@ stateDiagram-v2
 
 ## 5. Operating envelope
 
-Rows 1–3, 6–8 measured 2026-11-19 (SQLite era; front-end and AI paths unchanged since). Rows 4, 5, 9, 10 re-measured 2026-11-21 on Postgres (PGlite, production build, fixture mode, 31 entries in review). Hosted rows H1–H5 are targets until M9 step 6. "est." = estimate with basis.
+Rows 1–2 re-measured 2026-11-21 after the UI redesign (production build, local). Rows 3, 6–8 measured 2026-11-19 (unchanged paths). Text contrast: every text token is ≥ 4.5:1 on every surface in both themes (worst 4.57), button text on the accent ≥ 4.5:1. Rows 4, 5, 9, 10 re-measured 2026-11-21 on Postgres (PGlite, production build, fixture mode, 31 entries in review). Hosted rows H1–H5 are targets until M9 step 6. "est." = estimate with basis.
 
 | # | Layer | Component | Metric | Target | Est. | Actual (2026-11-19) | Measured with |
 |---|---|---|---|---|---|---|---|
-| 1 | Front-end | `/queue` | LCP / CLS (prod build, local) | ≤ 2.5 s / ≤ 0.1 | 1.2 s | LCP p50 240 ms, worst 520 ms of 5 · CLS 0.000 · JS 79 KB gzip total | Playwright PerformanceObserver |
-| 2 | Front-end | Approve (queue row) | First feedback | ≤ 100 ms | 30 ms | 38 ms (row hide + toast) | Playwright |
+| 1 | Front-end | `/queue` | LCP / CLS (prod build, local) | ≤ 2.5 s / ≤ 0.1 | 1.2 s | After the redesign (2026-11-21): LCP p50 180 ms, worst 224 ms of 5 · CLS 0.000 · transferred on `/queue`: JS 71 KB, CSS 5 KB, fonts 2 files / 69 KB (self-hosted) | Playwright PerformanceObserver |
+| 2 | Front-end | Approve (queue row) | First feedback | ≤ 100 ms | 30 ms | 3 ms to remove the row (optimistic), toast in the same frame (2026-11-21) | Playwright |
 | 3 | Front-end | CLI | Startup to first output | ≤ 300 ms | 150 ms | `--help` p50 62 ms · `entries list` (HTTP) p50 111 ms, max 146 ms | 10-run timing (hyperfine not installed) |
 | 4 | Back-end | Queue query (incl. company context + RLS) | p95 | ≤ 50 ms | 8 ms | handler p50 7.0 / p95 10.0 ms (PGlite, 2026-11-21) | `server-timing` header, 100 runs |
 | 5 | Middleware | `GET /api/entries` | p50 / p95 / p99 | ≤ 300 ms p95 | 40 ms | 13.0 / 19.7 / 23.5 ms (PGlite + identity + RLS, 2026-11-21) | curl loop, 200 runs |

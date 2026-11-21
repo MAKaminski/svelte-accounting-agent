@@ -209,7 +209,7 @@
   .chip b { font-weight: 600; font-variant-numeric: tabular-nums; }
   .chip b.bad { color: var(--danger); }
   .table { overflow-x: auto; }
-  .row { display: grid; grid-template-columns: 62px minmax(200px, 1.5fr) 104px minmax(150px, 1.1fr) 104px minmax(180px, 2.2fr) 104px; gap: 16px; padding: 0 20px; min-height: 54px; align-items: center; border-bottom: 1px solid var(--hair-soft); min-width: 980px; cursor: default; font-size: 13.5px; transition: background var(--t-fast) var(--ease); animation: rowin var(--t) var(--ease); }
+  .row { display: grid; grid-template-columns: 56px minmax(170px, 1.5fr) 92px minmax(130px, 1.1fr) 96px minmax(130px, 2.2fr) 96px; gap: 14px; padding: 0 20px; min-height: 54px; align-items: center; border-bottom: 1px solid var(--hair-soft); min-width: 860px; cursor: default; font-size: 13.5px; transition: background var(--t-fast) var(--ease); animation: rowin var(--t) var(--ease); }
   @keyframes rowin { from { opacity: 0; } to { opacity: 1; } }
   .row:last-child { border-bottom: 0; }
   .row:not(.head):hover { background: var(--hair-soft); }

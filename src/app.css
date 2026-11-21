@@ -6,6 +6,8 @@
   --text: #E8ECF6; --text-2: #A9B3C9; --text-muted: #8791A8;
   --a1: #6E7CFF; --a2: #A56BFF; --accent-solid: #8A76FF;
   --grad: linear-gradient(135deg, var(--a1), var(--a2));
+  /* Buttons carry white text: slightly deeper stops keep 4.5:1 (AA). */
+  --grad-btn: linear-gradient(135deg, #5661EE, #8650E6);
   --accent-tint: rgb(110 124 255 / .14);
   --ok: #3DD68C; --ok-soft: rgb(61 214 140 / .10);
   --warn: #F5B544; --warn-ink: #F5B544; --warn-soft: rgb(245 181 68 / .10);
@@ -28,7 +30,7 @@
   --page: #F6F7FB; --panel: #FFFFFF; --raised: #FFFFFF; --overlay: #FFFFFF; --sunken: #F1F3F9;
   --hair: rgb(15 23 42 / .10); --hair-soft: rgb(15 23 42 / .06); --hair-strong: rgb(15 23 42 / .18);
   --text: #0F172A; --text-2: #3B4660; --text-muted: #5B667E;
-  --a1: #4F5BFF; --a2: #8B4DFF; --accent-solid: #5B4DF0;
+  --a1: #4F5BFF; --a2: #8B4DFF; --accent-solid: #5B4DF0; --grad-btn: linear-gradient(135deg, #4F5BFF, #8B4DFF);
   --accent-tint: rgb(79 91 255 / .09);
   --ok: #0A7F47; --ok-soft: rgb(14 159 91 / .09);
   --warn: #9A5B00; --warn-ink: #9A5B00; --warn-soft: rgb(178 106 0 / .09);
@@ -53,8 +55,8 @@ a { color: var(--link); text-underline-offset: 2px; }
 .btn:hover:not(:disabled) { border-color: var(--text-muted); background: var(--overlay); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn.primary { border-color: transparent; background: var(--grad); color: #fff; box-shadow: var(--glow); }
-.btn.primary:hover:not(:disabled) { background: var(--grad); filter: brightness(1.08); border-color: transparent; }
+.btn.primary { border-color: transparent; background: var(--grad-btn); color: #fff; box-shadow: var(--glow); }
+.btn.primary:hover:not(:disabled) { background: var(--grad-btn); filter: brightness(1.08); border-color: transparent; }
 .btn.dark { background: var(--text); border-color: var(--text); color: var(--page); }
 .btn.dark:hover:not(:disabled) { background: var(--text); filter: brightness(.92); }
 .btn.warn { background: var(--warn-soft); border-color: rgb(245 181 68 / .4); color: var(--warn); }
