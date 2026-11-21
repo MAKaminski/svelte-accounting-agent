@@ -1,0 +1,92 @@
+[
+  {
+    "id": "10",
+    "name": "Mercury Checking",
+    "type": "Bank",
+    "active": true
+  },
+  {
+    "id": "11",
+    "name": "Slash Checking",
+    "type": "Bank",
+    "active": true
+  },
+  {
+    "id": "30",
+    "name": "Inventory",
+    "type": "Other Current Asset",
+    "active": true
+  },
+  {
+    "id": "31",
+    "name": "Cost of Goods Sold",
+    "type": "Cost of Goods Sold",
+    "active": true
+  },
+  {
+    "id": "40",
+    "name": "Sales",
+    "type": "Income",
+    "active": true
+  },
+  {
+    "id": "50",
+    "name": "Platform Fees",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "51",
+    "name": "Shipping & Postage",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "52",
+    "name": "Supplies",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "53",
+    "name": "Advertising & Marketing",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "54",
+    "name": "Software & Subscriptions",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "55",
+    "name": "Bank Fees",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "56",
+    "name": "Payroll Expenses",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "60",
+    "name": "Owner's Draw",
+    "type": "Equity",
+    "active": true
+  },
+  {
+    "id": "90",
+    "name": "Uncategorized Expense",
+    "type": "Expense",
+    "active": true
+  },
+  {
+    "id": "91",
+    "name": "Uncategorized Income",
+    "type": "Income",
+    "active": true
+  }
+]

@@ -44,7 +44,7 @@ export type Recommendation = z.infer<typeof RecommendationSchema>;
 
 export const EntrySchema = z.object({
   id: z.string(),
-  slashStatus: z.string(),
+  ledgerStatus: z.string(),
   state: LocalStateSchema,
   stateReason: z.string().nullable(),
   amountCents: z.number().int(),
@@ -55,6 +55,12 @@ export const EntrySchema = z.object({
   merchantName: z.string().nullable(),
   mcc: z.string().nullable(),
   pendingUntil: z.string().nullable(),
+  connectionId: z.string(),
+  ledgerName: z.string(),
+  ledgerKind: z.string(),
+  chart: z.enum(['slash', 'qbo']),
+  writesTo: z.string(),
+  qboTxnId: z.string().nullable(),
   openQuestionId: z.string().nullable(),
   recommendation: RecommendationSchema.nullable()
 });
@@ -102,6 +108,8 @@ export type Question = z.infer<typeof QuestionSchema>;
 
 export const MappingProposalSchema = z.object({
   id: z.string(),
+  connectionId: z.string(),
+  target: z.enum(['ledger', 'local']),
   sourceType: z.string(),
   sourceId: z.string(),
   sourceLabel: z.string(),
@@ -151,7 +159,7 @@ export const EvalSummarySchema = z.object({
 
 export const PayoutImportSchema = z.object({ imported: z.number(), channel: z.string(), errors: z.array(z.string()) });
 
-export const AccountSchema = z.object({ id: z.string(), name: z.string(), enabled: z.boolean() });
+export const AccountSchema = z.object({ id: z.string(), name: z.string(), enabled: z.boolean(), source: z.enum(['slash', 'qbo']).optional() });
 export const CoaPullSchema = z.object({ accounts: z.array(AccountSchema), dryRun: z.boolean() });
 
 export const SettingsSchema = z.object({
@@ -164,7 +172,7 @@ export const SettingsSchema = z.object({
   modelWorker: z.string(),
   modelIntegrator: z.string(),
   ollama: z.boolean(),
-  passcodeSet: z.boolean(),
+  devBypass: z.boolean(),
   pullIntervalMin: z.number(),
   undoWindowMs: z.number(),
   accounts: z.number(),
@@ -174,3 +182,95 @@ export const SettingsSchema = z.object({
 export const ApiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), source: z.enum(['app', 'slash', 'qbo', 'model']).optional() })
 });
+
+// ---- Control plane ----
+export const ComponentSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['agent', 'rule', 'human', 'tool']),
+  layer: z.enum(['FE', 'MW', 'AI', 'IN', 'BE', 'TOOLS']),
+  label: z.string(),
+  summary: z.string(),
+  toggle: z.boolean(),
+  whenOff: z.string().nullable(),
+  enabled: z.boolean(),
+  status: z.enum(['active', 'idle', 'degraded', 'off']),
+  tier: z.string().nullable(),
+  promptVersion: z.string().nullable(),
+  target: z.string().nullable(),
+  usedBy: z.array(z.string()),
+  writes: z.array(z.string()),
+  evalPassRate: z.number().nullable(),
+  calls7d: z.number(),
+  failures7d: z.number(),
+  p95Ms: z.number().nullable(),
+  costUsd7d: z.number(),
+  cacheReadShare: z.number().nullable(),
+  lastRunAt: z.string().nullable(),
+  updatedBy: z.string().nullable(),
+  updatedAt: z.string().nullable()
+});
+export type Component = z.infer<typeof ComponentSchema>;
+
+export const ComponentDetailSchema = ComponentSchema.extend({
+  card: z.object({ trigger: z.string(), input: z.string(), steps: z.array(z.object({ kind: z.string(), does: z.string(), tier: z.string().optional(), evals: z.array(z.string()).optional() })), output: z.string(), fails: z.string(), accept: z.string(), budget: z.object({ p95_ms: z.number(), usd: z.number() }) }).nullable(),
+  tool: z.object({ port: z.string(), ops: z.array(z.string()) }).nullable(),
+  traces: z.array(z.string()),
+  stateCounts: z.record(z.string(), z.number()),
+  transitions: z.array(z.object({ from: z.string(), to: z.string(), by: z.string(), mine: z.boolean() })),
+  runs: z.array(z.object({ id: z.string(), subjectId: z.string().nullable(), startedAt: z.string(), status: z.string(), error: z.string().nullable(), e2eMs: z.number().nullable() }))
+});
+export type ComponentDetail = z.infer<typeof ComponentDetailSchema>;
+
+export const SystemGraphSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string(), label: z.string(),
+    kind: z.enum(['agent', 'rule', 'human', 'tool', 'table', 'external']),
+    layer: z.enum(['FE', 'MW', 'AI', 'IN', 'BE', 'TOOLS', 'EXT']),
+    status: z.enum(['active', 'idle', 'degraded', 'off']),
+    toggle: z.boolean()
+  })),
+  edges: z.array(z.object({ id: z.string(), source: z.string(), target: z.string(), kind: z.enum(['flow', 'writes', 'uses', 'calls']) }))
+});
+export type SystemGraph = z.infer<typeof SystemGraphSchema>;
+
+// ---- Ledgers ----
+export const CapabilitiesSchema = z.object({
+  reviewUnit: z.enum(['accounting_entry', 'transaction']), chart: z.enum(['ledger', 'qbo']), code: z.enum(['ledger', 'qbo_direct']),
+  markReady: z.boolean(), mappings: z.enum(['ledger', 'local']), annotate: z.boolean()
+});
+export const LedgerConnectionSchema = z.object({
+  id: z.string(), kind: z.string(), name: z.string(), mode: z.enum(['fixture', 'live']), status: z.enum(['active', 'inactive']),
+  capabilities: CapabilitiesSchema,
+  config: z.object({ accountIds: z.array(z.string()).optional(), qboBankAccountIdByAccount: z.record(z.string(), z.string()).optional() }),
+  hasCredentials: z.boolean(), bankFeedConfirmedBy: z.string().nullable(), bankFeedConfirmedAt: z.string().nullable(),
+  lastPullAt: z.string().nullable(), lastError: z.string().nullable(), blockers: z.array(z.string()),
+  inReview: z.number(), total: z.number(), createdAt: z.string()
+});
+export type LedgerConnection = z.infer<typeof LedgerConnectionSchema>;
+export const LedgerDetailSchema = LedgerConnectionSchema.extend({
+  health: z.object({ ok: z.boolean(), message: z.string() }).nullable(),
+  ledgerAccounts: z.array(z.object({ id: z.string(), name: z.string() })),
+  qboBankAccounts: z.array(z.object({ id: z.string(), name: z.string() }))
+});
+
+// ---- Members, tokens, orgs (M8) ----
+export const RoleSchema = z.enum(['owner', 'reviewer', 'viewer']);
+export const MemberSchema = z.object({
+  id: z.string(), // mem_… for members, inv_… for pending invites
+  kind: z.enum(['member', 'invite']), email: z.string(), name: z.string().nullable(), role: RoleSchema,
+  lastSeenAt: z.string().nullable(), createdAt: z.string(), you: z.boolean()
+});
+export type Member = z.infer<typeof MemberSchema>;
+export const ApiTokenSchema = z.object({
+  id: z.string(), name: z.string(), userEmail: z.string(), lastUsedAt: z.string().nullable(), revokedAt: z.string().nullable(), createdAt: z.string()
+});
+export type ApiToken = z.infer<typeof ApiTokenSchema>;
+/** Returned once by token.create; the raw token is never stored or shown again. */
+export const NewTokenSchema = ApiTokenSchema.extend({ token: z.string() });
+export const OrgSchema = z.object({ id: z.string(), name: z.string(), role: RoleSchema, current: z.boolean() });
+export type Org = z.infer<typeof OrgSchema>;
+export const WhoamiSchema = z.object({
+  email: z.string(), name: z.string().nullable(), orgId: z.string(), orgName: z.string(), role: RoleSchema,
+  via: z.enum(['google', 'token', 'dev-bypass'])
+});
+export type Whoami = z.infer<typeof WhoamiSchema>;

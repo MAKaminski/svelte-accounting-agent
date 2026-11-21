@@ -1,47 +1,59 @@
-# LaceLuxx Books
+# Accounting Agent
+
+An AI agent that does the bookkeeping grunt work: it codes bank and card transactions to the right accounts, shows its reasoning, asks when it isn't sure, and learns your rules. A person approves every entry.
+
+![Review queue](docs/media/queue-dark.png)
 
 ```bash
-pnpm i && pnpm db:migrate && pnpm db:seed && pnpm dev
+pnpm i && pnpm db:reset && pnpm db:seed && pnpm dev
 ```
 
-Open http://localhost:5173 (lands on `/queue`). CLI: `pnpm books --help`.
+Open http://localhost:5173. It runs on built-in demo data: no accounts or API keys needed, and you're signed in as the owner.
 
-An accounting agent for LaceLuxx. It codes Slash bank and card transactions to QuickBooks accounts, explains why, asks the owner when it isn't sure, and learns rules so the same question isn't asked twice. A person approves every coding; Slash's own QuickBooks sync posts it. The app never writes to QuickBooks.
+## What it does
 
-Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and model data), so the UI, CLI, tests and evals work with no keys.
+- **Codes transactions.** Pulls from your ledgers (Slash, Mercury) and picks the QuickBooks account for each one, including multi-line splits for marketplace payouts.
+- **Shows its work.** Every recommendation comes with a confidence level, a one-line reason, and the evidence it used.
+- **Asks instead of guessing.** Ambiguous purchases, transfers between your own accounts and payments to people go to the owner as a plain question.
+- **Learns.** After three consistent approvals it proposes a rule, so that merchant never needs a model call again.
 
-## Going live
+## How it works
 
-1. `cp .env.example .env` and set `APP_PASSCODE`, `TOKEN_ENC_KEY` (`openssl rand -base64 32`).
-2. Slash: create an API key with the narrowest permissions (Slash dashboard → Settings → Developer), set `SLASH_API_KEY`, `SLASH_LEGAL_ENTITY_ID`, `SLASH_MODE=live`. Run `pnpm books coa pull` then `pnpm books entries pull --dry-run`.
-3. Models: set `ANTHROPIC_API_KEY` (https://console.anthropic.com/settings/keys), `MODEL_MODE=live`, then `pnpm books evals run`.
-4. QuickBooks (read-only): create an Intuit app (https://developer.intuit.com/app/developer/dashboard), set `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_MODE=live`, then Settings → Connect QuickBooks.
-5. Optional: `PULL_INTERVAL_MIN=60` for hourly pulls; `OLLAMA_URL` to identify unknown merchants locally.
+```mermaid
+flowchart LR
+  L[Ledgers: Slash, Mercury] --> R[Rules: history, mappings, guards]
+  R -->|can't decide| M[Model: Claude Haiku, Sonnet for splits]
+  R --> V[Validate]
+  M --> V
+  V --> H{You approve, edit or ask}
+  H -->|10 s undo window| Q[QuickBooks]
+  H -->|3 consistent approvals| N[New rule]
+  N --> R
+```
 
-## Commands
+Cheap, deterministic rules run first; the model is called only when they can't decide, and its answer is checked by code before you see it.
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` | App on :5173 |
-| `pnpm books <noun> <verb>` | CLI (needs the app running); `--json` for machine output |
-| `pnpm test` | Unit + process tests (fixtures, in-memory SQLite) |
-| `pnpm test:e2e` | Playwright against a seeded dev server on :5174 |
-| `pnpm evals` | Eval cases, in-process; exit 1 on any failure |
-| `pnpm arch` / `pnpm arch:check` | Regenerate / verify ARCHITECTURE.md from the registries |
-| `pnpm diagrams:check` | Render every Mermaid diagram with mmdc |
-| `pnpm build && pnpm start` | Production server (`node build`) + `dist/books.mjs` |
-| `docker compose up` | One container, `./data` mounted, 0.5 vCPU / 512Mi |
+| Approve, with undo | The agent asks when unsure | See and switch every agent |
+|---|---|---|
+| ![Approve and undo](docs/media/approve-undo.gif) | ![Ask the owner](docs/media/ask-owner.gif) | ![Control plane](docs/media/control-plane.gif) |
 
-## Layout
+| Entry: reasoning and evidence | Evals and cost | Team and roles |
+|---|---|---|
+| ![Entry](docs/media/entry-dark.png) | ![Evals](docs/media/evals-dark.png) | ![Members](docs/media/members-dark.png) |
 
-| Path | Holds |
-|---|---|
-| `src/lib/commands.ts` | The command registry: CLI, palette, shortcuts, routes and docs come from it |
-| `processes.yaml` | Process cards, interactions, use-case traces |
-| `src/lib/server/processes/` | One handler per process (pull, research, recommend, decide, mappings, payouts, evals) |
-| `src/lib/server/{slash,qbo}.ts`, `ai/model.ts` | External ports with live + fixture implementations |
-| `src/lib/server/prompts/` | Versioned prompts (`recommend.v1`, `identify.v1`) |
-| `fixtures/` | Synthetic data; regenerate with `pnpm tsx scripts/make-fixtures.ts` |
-| `ARCHITECTURE.md` | ERD, architecture, sequences, process directory, operating envelope |
+## Why it's built this way
 
-See ARCHITECTURE.md for the design and the measured operating envelope.
+- **A human decides.** Nothing reaches the books without a recorded approval; every write is audited.
+- **Tested like software.** The model steps have eval cases (must-pass, edge and must-refuse) that run in CI.
+- **Safe for more than one company.** Each company's data is isolated in the database itself (Postgres row-level security), with owner, reviewer and viewer roles.
+- **Costs cents.** Rules and caching handle the routine; a typical recommendation costs a fraction of a cent.
+
+## Under the hood
+
+SvelteKit and TypeScript, Postgres (Neon) with Drizzle, Claude through the Anthropic API, hosted on Fly.io. One command registry drives the web UI, the `books` CLI and the ⌘K palette.
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): system design, data model, sequence diagrams, performance numbers
+- [docs/setup.md](docs/setup.md): connecting real ledgers, QuickBooks and models; all commands
+- [docs/design/brief.md](docs/design/brief.md): design principles and tokens
+
+A hosted demo runs at https://laceluxx-books.fly.dev (Google sign-in, invite only).

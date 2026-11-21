@@ -24,7 +24,6 @@ export const config = {
   get modelWorker() { return env('MODEL_WORKER', 'claude-haiku-5-5'); },
   get modelIntegrator() { return env('MODEL_INTEGRATOR', 'claude-sonnet-5-5'); },
   get ollamaUrl() { return env('OLLAMA_URL'); },
-  get passcode() { return env('APP_PASSCODE'); },
   get pullIntervalMin() { return Number(env('PULL_INTERVAL_MIN', '0')) || 0; },
   get undoWindowMs() { return Number(env('UNDO_WINDOW_MS', '10000')); },
   get shadowThreshold() { return Number(env('SHADOW_THRESHOLD', '0.9')); },

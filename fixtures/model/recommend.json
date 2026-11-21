@@ -223,5 +223,73 @@
     "confidence": 0.2,
     "reasoning": "No evidence settles the account.",
     "question": "What was this purchase for? Best guess: unknown."
+  },
+  "qbo|canva": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "qbo:54",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Canva subscription",
+    "confidence": 0.95,
+    "reasoning": "Prior Canva charges were coded Software & Subscriptions.",
+    "question": null
+  },
+  "qbo|usps": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "qbo:51",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "USPS postage",
+    "confidence": 0.96,
+    "reasoning": "Prior USPS charges were coded Shipping & Postage.",
+    "question": null
+  },
+  "qbo|uline": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "qbo:52",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "ULINE packaging supplies",
+    "confidence": 0.9,
+    "reasoning": "QuickBooks shows Uline purchases coded Supplies.",
+    "question": null
+  },
+  "qbo|facebk ads": {
+    "action": "code",
+    "lines": [
+      {
+        "valueId": "qbo:53",
+        "amountCents": "$AMOUNT"
+      }
+    ],
+    "memo": "Meta ads",
+    "confidence": 0.93,
+    "reasoning": "Prior Meta ad charges were coded Advertising & Marketing.",
+    "question": null
+  },
+  "qbo|gusto": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Gusto payment",
+    "confidence": 0.55,
+    "reasoning": "Gusto runs payroll and contractor payments; no history settles which.",
+    "question": "Is this Gusto payment payroll (Payroll Expenses) or a contractor payment? Best guess: Payroll Expenses."
+  },
+  "qbo|__default__": {
+    "action": "ask",
+    "lines": [],
+    "memo": "Unknown transaction",
+    "confidence": 0.2,
+    "reasoning": "No evidence settles the account.",
+    "question": "What was this for? Best guess: unknown."
   }
 }

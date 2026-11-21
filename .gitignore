@@ -8,3 +8,7 @@ data/
 !.env.example
 test-results
 playwright-report
+.neon
+
+# git bundles used to hand the repo over
+*.bundle

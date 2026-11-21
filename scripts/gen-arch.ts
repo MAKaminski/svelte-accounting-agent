@@ -2,20 +2,22 @@
 // pnpm arch:check  → fail if blocks are stale or the registries don't tick and tie.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
-import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import * as schema from '../src/lib/server/db/schema';
 import { commands } from '../src/lib/commands';
 
 type Step = { kind: 'rule' | 'judgment' | 'human'; does: string; tier?: string; evals?: string[] };
-type Proc = { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number } };
+type Proc = { trigger: string; input: string; steps: Step[]; output: string; writes: string[]; fails: string; accept: string; budget: { p95_ms: number; usd: number }; toggle?: boolean; whenOff?: string };
+type Tool = { target: string; port: string; ops: string[]; usedBy: string[]; toggle: boolean; whenOff?: string };
 type Registry = {
   processes: Record<string, Proc>;
+  tools: Record<string, Tool>;
   interactions: Record<string, string>[];
   traces: { name: string; actor: string; trigger: string; processes: string[]; end: string }[];
 };
 
 const reg = parse(readFileSync('processes.yaml', 'utf8')) as Registry;
-const tables = Object.values(schema).filter((v): v is SQLiteTable => v instanceof SQLiteTable);
+const tables = Object.values(schema).filter((v): v is PgTable => v instanceof PgTable);
 const esc = (s: string) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const code = (s: string) => '`' + s + '`';
 
@@ -33,10 +35,11 @@ const blocks: Record<string, string> = {};
   }
   for (const c of cfgs) {
     const fkCols = new Set(c.foreignKeys.flatMap((fk) => fk.reference().columns.map((x) => x.name)));
+    const pkCols = new Set(c.primaryKeys.flatMap((pk) => pk.columns.map((x) => x.name)));
     lines.push(`  ${c.name} {`);
     for (const col of c.columns) {
-      const t = col.columnType.includes('Integer') ? 'int' : col.columnType.includes('Real') ? 'real' : 'text';
-      const key = col.primary ? ' PK' : fkCols.has(col.name) ? ' FK' : '';
+      const t = col.columnType.includes('Integer') ? 'int' : col.columnType.includes('Double') ? 'float8' : col.columnType.includes('Boolean') ? 'bool' : 'text';
+      const key = col.primary || pkCols.has(col.name) ? ' PK' : fkCols.has(col.name) ? ' FK' : '';
       lines.push(`    ${t} ${col.name}${key}`);
     }
     lines.push('  }');
@@ -59,9 +62,9 @@ const blocks: Record<string, string> = {};
     const pos = c.params.filter((p) => p.kind === 'positional').map((p) => code(`<${p.name}>`));
     const flags = c.params.filter((p) => p.kind === 'flag').map((p) => code(`--${p.name}`));
     const exits = c.method === 'GET' ? '0 · 1 · 2' : '0 · 1 · 2';
-    return `| ${code(`books ${c.noun} ${c.verb}`)} | ${[...pos, ...flags, code('--json')].join(' ')} | ${esc(c.summary)} | ${exits} | ${code(`${c.method} ${c.path}`)} | ${code(c.process)} |`;
+    return `| ${code(`books ${c.noun} ${c.verb}`)} | ${[...pos, ...flags, code('--json')].join(' ')} | ${esc(c.summary)} | ${c.role} | ${exits} | ${code(`${c.method} ${c.path}`)} | ${code(c.process)} |`;
   });
-  blocks.cli = ['| Command | Args / flags | Does | Exit codes | Calls | Process |', '|---|---|---|---|---|---|', ...rows].join('\n');
+  blocks.cli = ['| Command | Args / flags | Does | Role | Exit codes | Calls | Process |', '|---|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
 // UI actions.
@@ -92,6 +95,18 @@ blocks.interactions = [
   ...reg.interactions.map((i) => `| ${code(i.from)} | ${i.to} | ${i.via} | ${i.sync} | ${esc(i.payload)} | ${esc(i.timeout)} |`)
 ].join('\n');
 
+blocks.tools = [
+  '| Tool | Target | Port · ops | Used by | Switch | When off |',
+  '|---|---|---|---|---|---|',
+  ...Object.entries(reg.tools ?? {}).map(([id, t]) => `| ${code(id)} | ${t.target} | ${t.port}: ${t.ops.join(', ')} | ${t.usedBy.map(code).join(', ')} | ${t.toggle ? 'yes' : 'required'} | ${esc(t.whenOff ?? '—')} |`)
+].join('\n');
+
+blocks.toggles = [
+  '| Process | Switch | When off |',
+  '|---|---|---|',
+  ...Object.entries(reg.processes).filter(([, p]) => p.toggle).map(([id, p]) => `| ${code(id)} | yes | ${esc(p.whenOff ?? '')} |`)
+].join('\n');
+
 blocks.traces = [
   '| Use case | Actor | Trigger | Processes | End state |',
   '|---|---|---|---|---|',
@@ -108,6 +123,8 @@ for (const c of commands) {
   if (`${c.noun}.${c.verb}` !== c.name) problems.push(`command ${c.name}: name must be noun.verb`);
   if (!/^[a-z]+$/.test(c.noun) || !/^[a-z]+$/.test(c.verb)) problems.push(`command ${c.name}: off-grammar noun/verb`);
   if (!procIds.has(c.process)) problems.push(`command ${c.name}: process ${c.process} not in processes.yaml`);
+  if (!['viewer', 'reviewer', 'owner'].includes(c.role)) problems.push(`command ${c.name}: missing role (viewer | reviewer | owner)`);
+  if (c.method === 'POST' && c.role === 'viewer' && c.name !== 'org.select') problems.push(`command ${c.name}: a write can't be open to viewers`);
   const file = 'src/routes' + c.path.replace(/:(\w+)/g, '[$1]') + '/+server.ts';
   if (!existsSync(file)) problems.push(`command ${c.name}: no route file ${file}`);
   else if (!new RegExp(`export const ${c.method}\\b`).test(readFileSync(file, 'utf8'))) problems.push(`command ${c.name}: ${file} does not export ${c.method}`);
@@ -127,6 +144,15 @@ for (const [id, p] of Object.entries(reg.processes)) {
     if (!s.tier) problems.push(`process ${id}: judgment step has no tier`);
   }
   for (const w of p.writes) if (!tableNames.has(w)) problems.push(`process ${id}: writes unknown table ${w}`);
+}
+for (const [id, p] of Object.entries(reg.processes)) {
+  if (typeof p.toggle !== 'boolean') problems.push(`process ${id}: toggle must be true or false`);
+  if (p.toggle && !p.whenOff) problems.push(`process ${id}: toggle without whenOff behavior`);
+}
+for (const [id, t] of Object.entries(reg.tools ?? {})) {
+  if (!/^[a-z]+\.[a-z]+$/.test(id)) problems.push(`tool ${id}: id must be <port>.<name>`);
+  if (t.toggle && !t.whenOff) problems.push(`tool ${id}: toggle without whenOff behavior`);
+  for (const u of t.usedBy) if (!procIds.has(u)) problems.push(`tool ${id}: usedBy unknown process ${u}`);
 }
 const written = new Set(Object.values(reg.processes).flatMap((p) => p.writes));
 for (const t of tableNames) if (!written.has(t)) problems.push(`table ${t}: written by no process`);

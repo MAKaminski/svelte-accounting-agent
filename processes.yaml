@@ -5,24 +5,34 @@ processes:
   MW.coa.pull:
     trigger: "Daily scheduler, `books coa pull`, first pull"
     input: "Slash account dimension values (SlashDimensionValue[])"
-    steps: [{ kind: rule, does: "upsert account values with enabled flag" }]
+    steps:
+      - kind: rule
+        does: "upsert account values per chart source: Slash dimension values ('slash'); QuickBooks accounts via MW.qbo.accounts ('qbo') when any connection codes qbo_direct"
     output: "dimension_values rows → CoaPull"
-    writes: [dimension_values]
+    writes: [ dimension_values ]
     fails: "2: Slash error (key missing, no account dimension, 5xx after retries)"
     accept: "tests/m1-pull.test.ts — 11 accounts, disabled flag kept"
     budget: { p95_ms: 2000, usd: 0 }
-  MW.entries.pull:
-    trigger: "Hourly (PULL_INTERVAL_MIN), `books entries pull`, Pull button"
-    input: "{ since?: date, dryRun?: bool } + Slash entries (in_review, ready_to_sync, synced) + transactions"
+    toggle: false
+  MW.ledger.pull:
+    trigger: Hourly (PULL_INTERVAL_MIN), `books entries pull [--connection]`, Pull button
+    input: "{ since?, dryRun?, connectionId? } + per active connection: adapter.listItems + listHistory (normalized LedgerItem)"
     steps:
-      - { kind: rule, does: "list entries by status, fetch their transactions" }
-      - { kind: rule, does: "upsert; changed raw (e.g. mapping recode) → back to fetched; ready→synced" }
-      - { kind: rule, does: "queue research → recommend for new/changed entries" }
-    output: "PullResult; accounting_entries fetched, slash_transactions"
-    writes: [accounting_entries, slash_transactions]
+      - kind: rule
+        does: "for each active ledger connection: list items in review + history through its adapter"
+      - kind: rule
+        does: upsert by (connection, external id); changed raw (e.g. mapping recode) → back to fetched; ready→synced
+      - kind: rule
+        does: queue research → recommend for new/changed items; a failing connection is recorded, others continue
+    output: "PullResult; ledger_items fetched, ledger_transactions"
+    writes:
+      - ledger_items
+      - ledger_transactions
+      - ledger_connections
     fails: "2: Slash 429/5xx after 5 tries with jitter; run marked failed"
     accept: "tests/m1-pull.test.ts — 23 in → 23 rows, rerun idempotent"
     budget: { p95_ms: 10000, usd: 0 }
+    toggle: false
   MW.entry.research:
     trigger: "After pull, after an owner answer, payout import"
     input: "accounting entry + transaction; payout_rows; QuickBooks vendors/purchases"
@@ -33,22 +43,25 @@ processes:
       - { kind: rule, does: "payout match: amount ± $0.01, date ± 3 days" }
       - { kind: rule, does: "no history + card merchant → AI.merchant.identify" }
     output: "evidence rows; state researched"
-    writes: [evidence, accounting_entries]
+    writes: [ evidence, ledger_items ]
     fails: "Partial: missing source noted in state_reason; continues"
     accept: "tests/m2-recommend.test.ts — USPS evidence kinds, QuickBooks-down partial"
     budget: { p95_ms: 1500, usd: 0 }
+    toggle: false
   AI.merchant.identify:
     trigger: "Research found no Slash or QuickBooks history"
     input: "{ merchantName, mcc, description }"
     steps:
       - { kind: rule, does: "build prompt identify.v1" }
-      - { kind: judgment, does: "classify merchant kind", tier: "Ollama 8B if OLLAMA_URL else Haiku 5.5 low", evals: [ec_pirateship_new] }
+      - { kind: judgment, does: "classify merchant kind", tier: "Ollama 8B if OLLAMA_URL else Haiku 5.5 low", evals: [ ec_pirateship_new ] }
       - { kind: rule, does: "Zod; failure → unknown" }
     output: "evidence(kind=merchant_profile)"
-    writes: [evidence]
+    writes: [ evidence ]
     fails: "Schema fail or model down → kind unknown, confidence 0"
     accept: "Fixture identify table; live: ≥ 8/10 merchant fixtures (TBD — add 10 cases)"
     budget: { p95_ms: 1500, usd: 0.0003 }
+    toggle: true
+    whenOff: Merchant profile is "unknown"; no model call
   AI.entry.recommend:
     trigger: "After research; `books entry recommend`; Recommend again"
     input: "RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts"
@@ -56,23 +69,26 @@ processes:
       - { kind: rule, does: "exact-input cache: unchanged hash → reuse stored output" }
       - { kind: rule, does: "Slash mapping precoded → code it (rules:mapping)" }
       - { kind: rule, does: "own transfer / person payment without owner answer → ask (rules:guard)" }
-      - { kind: judgment, does: "account, lines, memo, confidence, question", tier: "Haiku 5.5 low; Sonnet 5.5 medium when a payout row matched", evals: [ec_usps_history, ec_pirateship_new, ec_amazon_split, ec_whatnot_payout, ec_transfer, ec_zelle] }
+      - { kind: judgment, does: "account, lines, memo, confidence, question", tier: "Haiku 5.5 low; Sonnet 5.5 medium when a payout row matched", evals: [ ec_usps_history, ec_pirateship_new, ec_amazon_split, ec_whatnot_payout, ec_transfer, ec_zelle ] }
       - { kind: rule, does: "Zod; 1 retry; fallback to Sonnet once; then invalid" }
       - { kind: rule, does: "MW.entry.validate" }
     output: "recommendations row (tokens, cost, ttft, e2e); state recommended | invalid"
-    writes: [recommendations, accounting_entries]
+    writes: [ recommendations, ledger_items ]
     fails: "Model down after retry + fallback → invalid 'Model unavailable, retry'"
     accept: "6/6 seed eval cases; ≥ 95% shadow precision on first 100 decisions"
     budget: { p95_ms: 4000, usd: 0.0005 }
+    toggle: true
+    whenOff: 'Manual mode: each entry gets a "code by hand" placeholder; no model calls'
   MW.entry.validate:
     trigger: "After every recommendation and every approval"
     input: "RecOutput + { amountCents, enabled accounts, tx kind, hasOwnerAnswer }"
-    steps: [{ kind: rule, does: "sum = amount, accounts enabled, integer cents, ask has question, never code transfers" }]
+    steps: [ { kind: rule, does: "sum = amount, accounts enabled, integer cents, ask has question, never code transfers" } ]
     output: "error list (empty = valid)"
     writes: []
     fails: "—"
     accept: "tests/rules.test.ts"
     budget: { p95_ms: 5, usd: 0 }
+    toggle: false
   FE.entry.approve:
     trigger: "Button a / Save edits e, `books entry approve <id> --yes`"
     input: "entry id, optional edited lines + memo, override, later"
@@ -81,55 +97,65 @@ processes:
       - { kind: human, does: "decision recorded with who and when (approved | edited)" }
       - { kind: rule, does: "later: hold for the undo window (pending_until); else commit now" }
     output: "Decision; state approved"
-    writes: [decisions, accounting_entries]
+    writes: [ decisions, ledger_items ]
     fails: "1: open question, bad state, invalid lines"
     accept: "tests/m3-write.test.ts, tests/e2e/queue.spec.ts"
     budget: { p95_ms: 800, usd: 0 }
+    toggle: false
   FE.entry.undo:
     trigger: "Undo in toast (u), `books entry undo <id>`"
     input: "entry id inside its undo window"
-    steps: [{ kind: human, does: "undone decision recorded; state back to recommended" }]
+    steps: [ { kind: human, does: "undone decision recorded; state back to recommended" } ]
     output: "Decision; state recommended"
-    writes: [decisions, accounting_entries]
+    writes: [ decisions, ledger_items ]
     fails: "1: window closed (already sending)"
     accept: "tests/m3-write.test.ts — no Slash write after undo"
     budget: { p95_ms: 300, usd: 0 }
-  MW.entry.code:
+    toggle: false
+  MW.ledger.code:
     trigger: "Commit tick after the undo window, or approve without --later"
     input: "latest decision lines"
-    steps: [{ kind: rule, does: "PATCH /v2/accounting/entries/{id} (dimensions or lineItems), idempotency key = decision:code" }]
+    steps:
+      - kind: rule
+        does: "capabilities.code = 'ledger': adapter.code (Slash PATCH entry: dimensions or lineItems), idempotency key = decision:code"
     output: "state coded"
-    writes: [accounting_entries]
+    writes: [ ledger_items ]
     fails: "409 sync in progress → retry in 60 s; 400 → recommended with error"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 1500, usd: 0 }
-  MW.entry.ready:
-    trigger: "After MW.entry.code"
+    toggle: false
+  MW.ledger.ready:
+    trigger: "After MW.ledger.code"
     input: "entry id"
-    steps: [{ kind: rule, does: "POST mark-ready, idempotency key = decision:ready" }]
+    steps:
+      - kind: rule
+        does: adapter.markReady (Slash mark-ready), idempotency key = decision:ready
     output: "state ready (Slash ready_to_sync)"
-    writes: [accounting_entries]
+    writes: [ ledger_items ]
     fails: "Error surfaced on the row; stays coded"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 1500, usd: 0 }
+    toggle: false
   FE.entry.ask:
     trigger: "Ask (q), `books entry ask <id>`"
     input: "entry id, optional question text (defaults to the recommendation's)"
-    steps: [{ kind: human, does: "question recorded; decision asked" }]
+    steps: [ { kind: human, does: "question recorded; decision asked" } ]
     output: "Question; state asked"
-    writes: [questions, decisions, accounting_entries]
+    writes: [ questions, decisions, ledger_items ]
     fails: "1: already asked, bad state"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
+    toggle: false
   FE.entry.reject:
     trigger: "Reject (x) + confirm, `books entry reject <id> --yes`"
     input: "entry id, optional reason"
-    steps: [{ kind: human, does: "rejected decision recorded; coded by hand in Slash" }]
+    steps: [ { kind: human, does: "rejected decision recorded; coded by hand in Slash" } ]
     output: "Decision; state rejected"
-    writes: [decisions, accounting_entries]
+    writes: [ decisions, ledger_items ]
     fails: "1: no --yes, bad state"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
+    toggle: false
   FE.question.answer:
     trigger: "Questions screen Enter, `books question answer <id> --text`"
     input: "question id, answer text"
@@ -137,30 +163,40 @@ processes:
       - { kind: human, does: "answer recorded as evidence(owner_answer)" }
       - { kind: rule, does: "queue research → recommend" }
     output: "Question answered; state researched"
-    writes: [questions, evidence, accounting_entries]
+    writes: [ questions, evidence, ledger_items ]
     fails: "1: empty answer, already answered"
     accept: "tests/m3-write.test.ts"
     budget: { p95_ms: 300, usd: 0 }
+    toggle: false
   MW.mapping.propose:
     trigger: "After every approve or undo"
     input: "latest decision per entry for the merchant"
-    steps: [{ kind: rule, does: "≥ 3 approvals to the same single account, 0 conflicts → proposal; conflict → dismiss" }]
+    steps:
+      - kind: rule
+        does: ≥ 3 approvals of a merchant to the same single account within one connection, 0 conflicts → proposal (target = ledger | local by capability); conflict → dismiss
     output: "mapping_proposals row"
-    writes: [mapping_proposals]
+    writes: [ mapping_proposals ]
     fails: "—"
     accept: "tests/m4-learn.test.ts"
     budget: { p95_ms: 50, usd: 0 }
+    toggle: true
+    whenOff: No new rule proposals; existing rules stay in Slash
   FE.mapping.apply:
     trigger: "Rules screen Apply + confirm, `books mapping apply <id> --yes`"
     input: "proposal id"
     steps:
-      - { kind: human, does: "confirm" }
-      - { kind: rule, does: "PUT /v2/accounting/mappings (applyToExistingEntries), then pull to refresh recoded entries" }
+      - kind: human
+        does: confirm
+      - kind: rule
+        does: "target 'ledger': adapter.upsertMapping (Slash PUT /v2/accounting/mappings) then pull; target 'local': local_mappings row, re-recommend waiting entries"
     output: "proposal applied"
-    writes: [mapping_proposals]
+    writes:
+      - mapping_proposals
+      - local_mappings
     fails: "1: no --yes; 2: Slash error"
     accept: "tests/m4-learn.test.ts — next USPS entry coded by rules:mapping, no model call"
     budget: { p95_ms: 1500, usd: 0 }
+    toggle: false
   MW.payouts.import:
     trigger: "Settings upload, `books payouts import <csv>`"
     input: "CSV payout_id,date,gross,fees,shipping,net"
@@ -168,63 +204,572 @@ processes:
       - { kind: rule, does: "parse + validate (gross − fees − shipping = net ± 1¢)" }
       - { kind: rule, does: "upsert; re-research credits waiting for review" }
     output: "payout_rows"
-    writes: [payout_rows]
+    writes: [ payout_rows ]
     fails: "1: bad CSV with line numbers"
     accept: "tests/rules.test.ts, tests/m2-recommend.test.ts"
     budget: { p95_ms: 1000, usd: 0 }
+    toggle: false
   IN.evals.run:
     trigger: "`books evals run`, Evals screen (v), CI"
     input: "eval_cases"
-    steps: [{ kind: rule, does: "replay AI.merchant.identify + AI.entry.recommend per case, score against expected" }]
+    steps: [ { kind: rule, does: "replay AI.merchant.identify + AI.entry.recommend per case, score against expected" } ]
     output: "EvalRun; runs rows per case"
-    writes: [runs]
+    writes: [ runs ]
     fails: "1: any case fails"
     accept: "6/6 seed"
     budget: { p95_ms: 30000, usd: 0.005 }
+    toggle: false
   FE.eval.add:
     trigger: "Entry screen 'Add as eval case', `books eval add <entry>`"
     input: "entry with an approved decision"
-    steps: [{ kind: human, does: "freeze current input + human lines as a golden case" }]
+    steps: [ { kind: human, does: "freeze current input + human lines as a golden case" } ]
     output: "eval_cases row"
-    writes: [eval_cases]
+    writes: [ eval_cases ]
     fails: "1: no approved decision"
     accept: "manual"
     budget: { p95_ms: 100, usd: 0 }
+    toggle: false
   MW.qbo.connect:
     trigger: "Settings → Connect QuickBooks"
     input: "Intuit OAuth 2.0 code + realmId"
-    steps: [{ kind: rule, does: "exchange code, store encrypted tokens (rotating refresh)" }]
+    steps: [ { kind: rule, does: "exchange code, store encrypted tokens (rotating refresh)" } ]
     output: "qbo_tokens row"
-    writes: [qbo_tokens]
+    writes: [ qbo_tokens ]
     fails: "400 state mismatch; 502 token exchange"
     accept: "TBD — sandbox test once QBO keys exist"
     budget: { p95_ms: 2000, usd: 0 }
-  FE.entries.list: { trigger: "Queue / entry screens, `books entries list`, `books entry show`", input: "state filter", steps: [{ kind: rule, does: "read model" }], output: "Entry[] / EntryDetail", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
-  FE.questions.list: { trigger: "Questions screen, `books questions list`", input: "status", steps: [{ kind: rule, does: "read model" }], output: "Question[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
-  FE.mappings.list: { trigger: "Rules screen, `books mappings list`", input: "status", steps: [{ kind: rule, does: "read model" }], output: "MappingProposal[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 } }
-  FE.evals.show: { trigger: "Evals screen, `books evals show`", input: "—", steps: [{ kind: rule, does: "last run, shadow precision, cost by week" }], output: "EvalSummary", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 300, usd: 0 } }
-  FE.settings.show: { trigger: "Settings screen, `books settings show`", input: "—", steps: [{ kind: rule, does: "read config" }], output: "Settings", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 100, usd: 0 } }
-  FE.coa.list: { trigger: "Entry screen account picker, `books coa list`", input: "—", steps: [{ kind: rule, does: "read dimension_values" }], output: "Account[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 100, usd: 0 } }
+    toggle: false
+  FE.entries.list: { trigger: "Queue / entry screens, `books entries list`, `books entry show`", input: "state filter", steps: [ { kind: rule, does: "read model" } ], output: "Entry[] / EntryDetail", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 }, toggle: false }
+  FE.questions.list: { trigger: "Questions screen, `books questions list`", input: "status", steps: [ { kind: rule, does: "read model" } ], output: "Question[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 }, toggle: false }
+  FE.mappings.list: { trigger: "Rules screen, `books mappings list`", input: "status", steps: [ { kind: rule, does: "read model" } ], output: "MappingProposal[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 300, usd: 0 }, toggle: false }
+  FE.evals.show: { trigger: "Evals screen, `books evals show`", input: "—", steps: [ { kind: rule, does: "last run, shadow precision, cost by week" } ], output: "EvalSummary", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 300, usd: 0 }, toggle: false }
+  FE.settings.show: { trigger: "Settings screen, `books settings show`", input: "—", steps: [ { kind: rule, does: "read config" } ], output: "Settings", writes: [], fails: "—", accept: "manual", budget: { p95_ms: 100, usd: 0 }, toggle: false }
+  FE.coa.list: { trigger: "Entry screen account picker, `books coa list`", input: "—", steps: [ { kind: rule, does: "read dimension_values" } ], output: "Account[]", writes: [], fails: "—", accept: "e2e", budget: { p95_ms: 100, usd: 0 }, toggle: false }
+  FE.system.graph:
+    trigger: /system screens, `books system graph`, `books components list`, `books component show`
+    input: registries (processes.yaml, commands.ts) + component_states + runs (7 days)
+    steps:
+      - kind: rule
+        does: join registry nodes with on/off state and 7-day metrics; derive edges from traces and tool usage
+    output: SystemGraph { nodes[], edges[] } / Component[] / ComponentDetail
+    writes: []
+    fails: —
+    accept: tests/m6-control.test.ts
+    budget:
+      p95_ms: 100
+      usd: 0
+    toggle: false
+  FE.component.toggle:
+    trigger: /system toggle (t), `books component enable|disable <id>`
+    input: component id (process or tool) + enabled
+    steps:
+      - kind: rule
+        does: "reject components with toggle: false"
+      - kind: human
+        does: state recorded with who and when
+    output: Component; component_states row
+    writes:
+      - component_states
+    fails: "1: component cannot be switched off / unknown id"
+    accept: tests/m6-control.test.ts, tests/e2e/system.spec.ts
+    budget:
+      p95_ms: 300
+      usd: 0
+    toggle: false
+  MW.qbo.write:
+    trigger: Commit after the undo window for a connection with capabilities.code = 'qbo_direct' (Mercury)
+    input: decision lines (qbo:<Id> values) + item + connection bank-account mapping
+    steps:
+      - kind: rule
+        does: map ledger account → QuickBooks bank account and qbo:<Id> → QuickBooks account
+      - kind: rule
+        does: "dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other LaceLuxx-written txns"
+      - kind: rule
+        does: uncategorized match → sparse-update its lines; same account → no write; other account → entry invalid; none → create with requestid = decision id
+    output: ledger_items ready + qbo_txn_id/qbo_txn_type, or invalid/recommended with a QUICKBOOKS reason
+    writes:
+      - ledger_items
+    fails: QuickBooks 4xx/5xx → stays approved, retry in 60 s; missing mapping → recommended with reason; conflicting match → invalid
+    accept: tests/m7-ledgers.test.ts — create once, idempotent rerun, uncategorized update, conflict → invalid, qbo.write off → held
+    budget:
+      p95_ms: 1500
+      usd: 0
+    toggle: false
+  MW.ledger.annotate:
+    trigger: After MW.qbo.write succeeds (optional)
+    input: entry + final account names
+    steps:
+      - kind: rule
+        does: 'adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by LaceLuxx Books: <account>"'
+    output: note on the ledger transaction
+    writes: []
+    fails: Failure noted on the entry; QuickBooks coding stands
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 1500
+      usd: 0
+    toggle: true
+    whenOff: No note is written back to the ledger (QuickBooks coding unaffected)
+  MW.qbo.accounts:
+    trigger: MW.coa.pull when any connection codes against QuickBooks
+    input: QuickBooks Account list
+    steps:
+      - kind: rule
+        does: expense/income/COGS/equity accounts become qbo:<Id> coding targets; bank and Uncategorized accounts disabled
+    output: dimension_values (source qbo)
+    writes:
+      - dimension_values
+    fails: "2: QuickBooks error"
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 2000
+      usd: 0
+    toggle: false
+  MW.ledger.test:
+    trigger: /ledgers Test, `books ledger test <id>`
+    input: connection id
+    steps:
+      - kind: rule
+        does: "adapter.health(): list accounts with the stored credentials"
+    output: LedgerDetail with health
+    writes: []
+    fails: health.ok = false with the adapter message
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 2000
+      usd: 0
+    toggle: false
+  FE.ledger.add:
+    trigger: /ledgers Add connection, `books ledger add`
+    input: "{ kind, name, mode, token?, config (account → QuickBooks bank mapping), bankFeedConfirmed }"
+    steps:
+      - kind: human
+        does: owner adds the connection and confirms the bank-feed setting (recorded with who and when); token stored AES-GCM encrypted
+    output: ledger_connections row (inactive)
+    writes:
+      - ledger_connections
+    fails: "1: bad kind, missing token for live"
+    accept: tests/m7-ledgers.test.ts, tests/e2e/ledgers.spec.ts
+    budget:
+      p95_ms: 300
+      usd: 0
+    toggle: false
+  FE.ledger.toggle:
+    trigger: /ledgers Activate/Deactivate, `books ledger enable|disable <id>`
+    input: connection id + active
+    steps:
+      - kind: rule
+        does: "activation blockers: qbo_direct needs bank-feed confirmation + bank mapping; live Mercury needs a token"
+      - kind: human
+        does: state change
+    output: connection status
+    writes:
+      - ledger_connections
+    fails: "1: blockers listed"
+    accept: tests/m7-ledgers.test.ts
+    budget:
+      p95_ms: 300
+      usd: 0
+    toggle: false
+  FE.ledgers.list:
+    trigger: /ledgers, `books ledgers list`, `books ledger show`
+    input: —
+    steps:
+      - kind: rule
+        does: connections with capabilities, blockers, counts (never credentials)
+    output: LedgerConnection[] / LedgerDetail
+    writes: []
+    fails: —
+    accept: e2e
+    budget:
+      p95_ms: 100
+      usd: 0
+    toggle: false
+
+  MW.org.create:
+    trigger: "First boot (default org), `books orgs create` (M8 step 3), tests"
+    input: "{ name: string, id?: org_<letters, digits, - or _> }"
+    steps:
+      - kind: rule
+        does: "validate name and id; insert orgs row as the owner role (orgs is global, no RLS)"
+      - kind: rule
+        does: "inside the new org's RLS context: default Slash connection (inactive) + a copy of the 9 seed eval cases"
+    output: "org id; orgs row, ledger_connections row, 9 eval_cases rows for that org"
+    writes: [ orgs, ledger_connections, eval_cases ]
+    fails: "1: bad name or id (400)"
+    accept: "tests/m8-tenancy.test.ts — each new org gets its own 9 eval cases; org B sees none of A's rows"
+    budget: { p95_ms: 300, usd: 0 }
+    toggle: false
+  MW.audit.record:
+    trigger: "Every successful mutating API call (inside handle())"
+    input: "{ actor: user id | token:<id> | system, action: registry process id, subject: path :id, body }"
+    steps:
+      - kind: rule
+        does: "look up the registry command for route + method; redact keys matching token|secret|password|key|credential"
+      - kind: rule
+        does: "insert one audit_log row in the request's org (RLS)"
+    output: "audit_log row"
+    writes: [ audit_log ]
+    fails: "2: DB error → the request returns 500 (an unaudited write is not acceptable)"
+    accept: "tests/m8-tenancy.test.ts — audit row per write, secrets redacted"
+    budget: { p95_ms: 10, usd: 0 }
+    toggle: false
+
+  MW.auth.signin:
+    trigger: "Google sign-in callback (Auth.js)"
+    input: "{ email, name, Google sub, email_verified }"
+    steps:
+      - kind: rule
+        does: "refuse when no email, unverified, or no membership and no open invite"
+      - kind: rule
+        does: "create/update users (sub, name, last seen); accept every open invite for that email → memberships"
+    output: "true | false (false → /login?error=AccessDenied)"
+    writes: [ users, memberships, invites ]
+    fails: "refused → /login 'isn't invited' state"
+    accept: "tests/m8-auth.test.ts — not invited refused; invite accepted on first sign-in"
+    budget: { p95_ms: 150, usd: 0 }
+    toggle: false
+  FE.auth.whoami:
+    trigger: "`books auth whoami`, layout load"
+    input: "identity resolved in hooks"
+    steps:
+      - kind: rule
+        does: "current company + role from the identity"
+    output: "Whoami"
+    writes: [  ]
+    fails: "401 when not signed in"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 20, usd: 0 }
+    toggle: false
+  FE.members.list:
+    trigger: "/settings/members, `books members list`"
+    input: "—"
+    steps:
+      - kind: rule
+        does: "memberships ⨝ users and open invites, RLS-scoped to the company"
+    output: "Member[]"
+    writes: [  ]
+    fails: "403 below owner"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 50, usd: 0 }
+    toggle: false
+  FE.member.invite:
+    trigger: "Invite form, `books member invite --email --role`"
+    input: "{ email, role }"
+    steps:
+      - kind: rule
+        does: "validate email + role; refuse duplicates (409)"
+      - kind: rule
+        does: "existing app user → membership now; else open invite accepted on first sign-in"
+    output: "Member (invite or member)"
+    writes: [ invites, memberships ]
+    fails: "1: bad email/role, already a member"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 80, usd: 0 }
+    toggle: false
+  FE.member.role:
+    trigger: "Role select, `books member role <id> --role`"
+    input: "{ id: mem_…|inv_…, role }"
+    steps:
+      - kind: rule
+        does: "the company always keeps ≥ 1 owner (409 last_owner)"
+    output: "Member"
+    writes: [ memberships, invites ]
+    fails: "1: last owner, not found"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 60, usd: 0 }
+    toggle: false
+  FE.member.remove:
+    trigger: "Remove / Cancel invite, `books member remove <id> --yes`"
+    input: "{ id, yes: true }"
+    steps:
+      - kind: rule
+        does: "require --yes; keep ≥ 1 owner; revoke the member's tokens for this company, then delete"
+    output: "Member (as it was)"
+    writes: [ memberships, invites, api_tokens ]
+    fails: "1: no --yes, last owner"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 80, usd: 0 }
+    toggle: false
+  FE.tokens.list:
+    trigger: "/settings/members, `books tokens list`"
+    input: "—"
+    steps:
+      - kind: rule
+        does: "tokens ⨝ users for this company (never the raw token)"
+    output: "ApiToken[]"
+    writes: [  ]
+    fails: "403 below owner"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 40, usd: 0 }
+    toggle: false
+  FE.token.create:
+    trigger: "New token, `books token create --name`"
+    input: "{ name } + calling user (web session, not a token)"
+    steps:
+      - kind: rule
+        does: "32 random bytes (llx_…); store sha256 only; return the raw token once"
+    output: "NewToken (token shown once)"
+    writes: [ api_tokens ]
+    fails: "1: no name; 403 when called with a token"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 60, usd: 0 }
+    toggle: false
+  FE.token.revoke:
+    trigger: "Revoke, `books token revoke <id> --yes`"
+    input: "{ id, yes: true }"
+    steps:
+      - kind: rule
+        does: "set revoked_at; the next request with it gets 401"
+    output: "ApiToken"
+    writes: [ api_tokens ]
+    fails: "1: no --yes, not found"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 40, usd: 0 }
+    toggle: false
+  FE.orgs.list:
+    trigger: "Nav company switcher, `books orgs list`"
+    input: "identity memberships"
+    steps:
+      - kind: rule
+        does: "companies the caller belongs to; mark the current one"
+    output: "Org[]"
+    writes: [  ]
+    fails: "—"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 20, usd: 0 }
+    toggle: false
+  FE.org.select:
+    trigger: "Company switcher"
+    input: "{ id: org_… }"
+    steps:
+      - kind: rule
+        does: "must be a member; tokens are pinned to their company"
+      - kind: rule
+        does: "set the books_org cookie; the next request runs in that company's RLS context"
+    output: "Org"
+    writes: [  ]
+    fails: "404 not a member; 403 with a token"
+    accept: "tests/m8-auth.test.ts"
+    budget: { p95_ms: 30, usd: 0 }
+    toggle: false
 
 interactions:
-  - { from: MW.entries.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
+  - { from: MW.ledger.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
   - { from: MW.coa.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/dimensions(+values)", timeout: "10 s; 5 tries" }
   - { from: MW.entry.research, to: "QuickBooks API", via: HTTPS, sync: sync, payload: "query Vendor, Purchase (24 h cache)", timeout: "10 s; 2 tries; continue without QuickBooks evidence" }
   - { from: AI.merchant.identify, to: "Ollama | Anthropic", via: HTTP, sync: sync, payload: "identify.v1", timeout: "20 s; Ollama → Haiku" }
   - { from: AI.entry.recommend, to: Anthropic, via: HTTPS, sync: sync, payload: "recommend.v1 (cached prefix)", timeout: "30 s; 1 retry; Sonnet once; else invalid" }
-  - { from: MW.entry.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
-  - { from: MW.entry.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
+  - { from: MW.ledger.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
+  - { from: MW.ledger.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
   - { from: FE.mapping.apply, to: "Slash API", via: HTTPS, sync: sync, payload: "PUT /v2/accounting/mappings", timeout: "10 s; idempotency key = proposal id" }
   - { from: MW.qbo.connect, to: "Intuit OAuth", via: HTTPS, sync: sync, payload: "token exchange", timeout: "10 s; no retry" }
+  - from: MW.ledger.pull
+    to: Mercury API
+    via: HTTPS
+    sync: sync
+    payload: GET /accounts, /transactions (cursor)
+    timeout: 10 s; 5 tries with jitter; connection lastError, others continue
+  - from: MW.qbo.write
+    to: QuickBooks API
+    via: HTTPS
+    sync: sync
+    payload: query Purchase/Deposit; POST purchase|deposit?requestid=decision
+    timeout: 10 s; on failure stays approved, retry in 60 s; requestid makes retries safe
+  - from: MW.ledger.annotate
+    to: Mercury API
+    via: HTTPS
+    sync: sync
+    payload: PATCH /transaction/{id} note
+    timeout: 10 s; failure noted, coding stands
 
 traces:
-  - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [MW.coa.pull, MW.entries.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready, MW.mapping.propose], end: ready }
-  - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [MW.entries.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
-  - { name: "Owner question", actor: "Reviewer, owner", trigger: "Low confidence", processes: [AI.entry.recommend, FE.entry.ask, FE.questions.list, FE.question.answer, MW.entry.research, AI.entry.recommend, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
-  - { name: "Undo", actor: Reviewer, trigger: "Approve then Undo within 10 s", processes: [FE.entry.approve, FE.entry.undo, MW.mapping.propose], end: recommended }
-  - { name: "Reject", actor: Reviewer, trigger: "Wrong recommendation", processes: [FE.entry.reject], end: rejected }
-  - { name: "Whatnot payout", actor: "Owner, reviewer", trigger: "Payout lands", processes: [MW.payouts.import, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.entry.code, MW.entry.ready], end: ready }
-  - { name: "Learn a rule", actor: Reviewer, trigger: "3rd consistent approval", processes: [MW.mapping.propose, FE.mappings.list, FE.mapping.apply, MW.entries.pull, AI.entry.recommend], end: "mapping in Slash; next entry coded by rules:mapping" }
-  - { name: "Degraded: model down", actor: Cron, trigger: "Anthropic 5xx", processes: [AI.entry.recommend], end: "invalid — 'Model unavailable, retry'; manual edit-and-approve still works" }
-  - { name: "Evals", actor: "Reviewer, CI", trigger: "`books evals run`", processes: [IN.evals.run, AI.merchant.identify, AI.entry.recommend, FE.evals.show, FE.eval.add], end: "EvalRun" }
-  - { name: "Setup", actor: Owner, trigger: "First run", processes: [FE.settings.show, MW.qbo.connect, MW.coa.pull, FE.coa.list], end: "connected" }
+  - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.coa.pull, MW.ledger.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready, MW.mapping.propose ], end: ready }
+  - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.ledger.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
+  - { name: "Owner question", actor: "Reviewer, owner", trigger: "Low confidence", processes: [ AI.entry.recommend, FE.entry.ask, FE.questions.list, FE.question.answer, MW.entry.research, AI.entry.recommend, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
+  - { name: "Undo", actor: Reviewer, trigger: "Approve then Undo within 10 s", processes: [ FE.entry.approve, FE.entry.undo, MW.mapping.propose ], end: recommended }
+  - { name: "Reject", actor: Reviewer, trigger: "Wrong recommendation", processes: [ FE.entry.reject ], end: rejected }
+  - { name: "Whatnot payout", actor: "Owner, reviewer", trigger: "Payout lands", processes: [ MW.payouts.import, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
+  - { name: "Learn a rule", actor: Reviewer, trigger: "3rd consistent approval", processes: [ MW.mapping.propose, FE.mappings.list, FE.mapping.apply, MW.ledger.pull, AI.entry.recommend ], end: "mapping in Slash; next entry coded by rules:mapping" }
+  - { name: "Degraded: model down", actor: Cron, trigger: "Anthropic 5xx", processes: [ AI.entry.recommend ], end: "invalid — 'Model unavailable, retry'; manual edit-and-approve still works" }
+  - { name: "Evals", actor: "Reviewer, CI", trigger: "`books evals run`", processes: [ IN.evals.run, AI.merchant.identify, AI.entry.recommend, FE.evals.show, FE.eval.add ], end: "EvalRun" }
+  - { name: "Setup", actor: Owner, trigger: "First run", processes: [ FE.settings.show, MW.qbo.connect, MW.coa.pull, FE.coa.list ], end: "connected" }
+  - name: Control plane
+    actor: Owner
+    trigger: Review or pause a component
+    processes:
+      - FE.system.graph
+      - FE.component.toggle
+      - MW.ledger.pull
+      - AI.entry.recommend
+    end: component off → its whenOff behavior; on → normal
+  - name: Mercury expense (QuickBooks direct)
+    actor: Cron, reviewer
+    trigger: Hourly pull
+    processes:
+      - MW.ledger.pull
+      - MW.coa.pull
+      - MW.qbo.accounts
+      - MW.entry.research
+      - AI.entry.recommend
+      - MW.entry.validate
+      - FE.entry.approve
+      - MW.qbo.write
+      - MW.ledger.annotate
+    end: ready (QuickBooks txn created, matched or recoded)
+  - name: Connect a ledger
+    actor: Owner
+    trigger: Add Mercury
+    processes:
+      - FE.ledgers.list
+      - FE.ledger.add
+      - MW.ledger.test
+      - FE.ledger.toggle
+      - MW.ledger.pull
+    end: connection active, items pulled
+  - name: New company
+    actor: Owner (system on first boot)
+    trigger: Default org missing, or a new company is added
+    processes:
+      - MW.org.create
+      - MW.coa.pull
+      - FE.ledger.add
+    end: "org with its own connections, chart, switches and eval cases; invisible to other orgs (RLS)"
+  - name: Audited change
+    actor: Owner, reviewer
+    trigger: Any write (approve, toggle, ledger change)
+    processes:
+      - FE.component.toggle
+      - MW.audit.record
+    end: audit_log row with actor, process id and redacted body
+  - name: Invite a reviewer
+    actor: Owner, new reviewer
+    trigger: Owner adds a bookkeeper
+    processes:
+      - FE.members.list
+      - FE.member.invite
+      - MW.audit.record
+      - MW.auth.signin
+      - FE.auth.whoami
+      - FE.entry.approve
+    end: "reviewer signed in with Google, approving in that company only"
+  - name: CLI with a token
+    actor: Owner (CLI)
+    trigger: Use the hosted app from a terminal
+    processes:
+      - FE.token.create
+      - FE.tokens.list
+      - FE.entries.list
+      - FE.token.revoke
+    end: "token works for its company; 401 after revoke"
+  - name: Switch company
+    actor: Member of two companies
+    trigger: Company switcher
+    processes:
+      - FE.orgs.list
+      - FE.org.select
+      - FE.entries.list
+    end: "every query now scoped to the selected company (RLS)"
+  - name: Change roles
+    actor: Owner
+    trigger: Promote, demote or remove someone
+    processes:
+      - FE.member.role
+      - FE.member.remove
+      - MW.audit.record
+    end: "roles updated; ≥ 1 owner kept; removed member's tokens revoked"
+tools:
+  slash.read:
+    target: Slash API
+    port: SlashPort
+    ops:
+      - listEntries
+      - listTransactionsForEntries
+      - listAccountValues
+    usedBy:
+      - MW.ledger.pull
+      - MW.coa.pull
+      - MW.ledger.test
+    toggle: false
+  slash.write:
+    target: Slash API
+    port: SlashPort
+    ops:
+      - updateEntry
+      - markReady
+    usedBy:
+      - MW.ledger.code
+      - MW.ledger.ready
+    toggle: true
+    whenOff: Approved entries are held, not sent, until Slash writes resume
+  slash.mappings:
+    target: Slash API
+    port: SlashPort
+    ops:
+      - upsertMapping
+    usedBy:
+      - FE.mapping.apply
+    toggle: true
+    whenOff: Learned rules cannot be applied to Slash
+  qbo.read:
+    target: QuickBooks API
+    port: QboPort
+    ops:
+      - listVendors
+      - purchasesByVendor
+      - listAccounts
+    usedBy:
+      - MW.entry.research
+      - MW.qbo.accounts
+    toggle: true
+    whenOff: Research skips QuickBooks history
+  model.anthropic:
+    target: Anthropic
+    port: ModelPort
+    ops:
+      - messages.stream
+    usedBy:
+      - AI.entry.recommend
+      - AI.merchant.identify
+      - IN.evals.run
+    toggle: false
+  model.ollama:
+    target: Ollama
+    port: ModelPort
+    ops:
+      - api/chat
+    usedBy:
+      - AI.merchant.identify
+    toggle: true
+    whenOff: Merchant identify uses Haiku instead
+  mercury.read:
+    target: Mercury API
+    port: MercuryPort
+    ops:
+      - listAccounts
+      - listTransactions
+    usedBy:
+      - MW.ledger.pull
+      - MW.ledger.test
+    toggle: false
+  mercury.annotate:
+    target: Mercury API
+    port: MercuryPort
+    ops:
+      - updateTransaction (note)
+    usedBy:
+      - MW.ledger.annotate
+    toggle: true
+    default: false
+    whenOff: No notes on Mercury transactions (needs a read+write token, which Mercury requires to be IP-whitelisted)
+  qbo.write:
+    target: QuickBooks API
+    port: QboWritePort
+    ops:
+      - findCandidates
+      - create (requestid)
+      - updateLineAccounts
+    usedBy:
+      - MW.qbo.write
+    toggle: true
+    whenOff: Approvals for QuickBooks-direct ledgers (Mercury) are held, not written, until writes resume

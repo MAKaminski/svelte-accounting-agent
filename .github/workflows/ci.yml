@@ -1,0 +1,28 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SLASH_MODE: fixture
+      QBO_MODE: fixture
+      MODEL_MODE: fixture
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm version comes from package.json "packageManager" (one source; the action rejects two).
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: PUPPETEER_SKIP_DOWNLOAD=1 pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm db:migrate && pnpm evals
+      - run: pnpm arch:check
+      - run: pnpm exec tsx scripts/gen-rls.ts --check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm diagrams:check
+      - run: pnpm test:e2e
+      - run: pnpm build

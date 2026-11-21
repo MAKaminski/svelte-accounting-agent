@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && pnpm cli:build",
+    "build": "vite build && pnpm cli:build && pnpm ops:build",
     "preview": "vite preview",
     "start": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -13,21 +13,26 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "org:invite": "tsx scripts/invite.ts",
     "books": "tsx src/cli/books.ts",
     "cli:build": "esbuild src/cli/books.ts --bundle --platform=node --format=esm --outfile=dist/books.mjs",
+    "ops:build": "esbuild scripts/migrate.ts scripts/invite.ts scripts/seed.ts --bundle --platform=node --format=esm --outdir=dist/ops --out-extension:.js=.mjs --alias:\\$lib=./src/lib --packages=external",
     "evals": "tsx scripts/evals.ts",
     "arch": "tsx scripts/gen-arch.ts",
     "arch:check": "tsx scripts/gen-arch.ts --check",
     "diagrams:check": "node scripts/check-diagrams.mjs",
-    "test:e2e": "playwright test --trace off"
+    "shots": "node scripts/shots.mjs",
+    "gifs": "node scripts/gifs.mjs",
+    "test:e2e": "playwright test --trace off",
+    "db:reset": "tsx scripts/reset.ts"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "0.2.20",
     "@mermaid-js/mermaid-cli": "^12.2.0",
     "@playwright/test": "^1.65.1",
     "@sveltejs/adapter-node": "^5.5.8",
     "@sveltejs/kit": "^2.70.4",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
@@ -36,19 +41,26 @@
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^8.3.8",
-    "vitest": "^5.1.1",
-    "yaml": "^2.9.1"
+    "vitest": "^5.1.1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
-    "better-sqlite3": "^13.2.0",
+    "@auth/sveltekit": "1.11.3",
+    "@electric-sql/pglite": "^0.5.17",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9",
+    "@xyflow/svelte": "^2.0.2",
     "drizzle-orm": "^0.45.4",
+    "postgres": "^4.1.1",
+    "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "esbuild"
     ]
-  }
+  },
+  "packageManager": "pnpm@10.28.0"
 }
