@@ -8,7 +8,7 @@
   const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
 </script>
 
-<svelte:head><title>Agents · System · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Agents · System · Accounting Agent</title></svelte:head>
 {#if data.error}
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />
 {:else}

@@ -11,7 +11,7 @@ const err = (s: string) => process.stderr.write(s.endsWith('\n') ? s : s + '\n')
 function globalHelp(): string {
   const w = Math.max(...commands.map((c) => `${c.noun} ${c.verb}`.length));
   const lines = commands.map((c) => `  ${`${c.noun} ${c.verb}`.padEnd(w)}  ${c.summary}${c.writesSlash ? ' [writes to Slash]' : ''}`);
-  return `books — LaceLuxx Books agent CLI\n\nUsage: books <noun> <verb> [args] [flags]\n\nCommands:\n${lines.join('\n')}\n\nGlobal flags:\n  --json   Machine-readable output (same schema as the API)\n  --help   Help for any command\n\nEnv: BOOKS_URL (default http://localhost:5173), BOOKS_TOKEN (API token from Settings → Members; not needed with the local dev bypass)\nExit codes: 0 ok · 1 user error · 2 upstream/system error\n`;
+  return `books — Accounting Agent agent CLI\n\nUsage: books <noun> <verb> [args] [flags]\n\nCommands:\n${lines.join('\n')}\n\nGlobal flags:\n  --json   Machine-readable output (same schema as the API)\n  --help   Help for any command\n\nEnv: BOOKS_URL (default http://localhost:5173), BOOKS_TOKEN (API token from Settings → Members; not needed with the local dev bypass)\nExit codes: 0 ok · 1 user error · 2 upstream/system error\n`;
 }
 
 function commandHelp(c: Command): string {

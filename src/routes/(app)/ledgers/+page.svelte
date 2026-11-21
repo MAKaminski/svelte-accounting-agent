@@ -46,7 +46,7 @@
   }
 </script>
 
-<svelte:head><title>Ledgers · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Ledgers · Accounting Agent</title></svelte:head>
 <header>
   <h1>Ledgers</h1>
   <span class="muted">{data.ledgers.length} connection{data.ledgers.length === 1 ? '' : 's'} · {active} active</span>
@@ -133,8 +133,8 @@
   .conn { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
   .conn.bad { border-color: var(--danger-line); }
   .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .kind { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #e0f2fe; color: #075985; }
-  .kind.mercury { background: #ede9fe; color: #5b21b6; }
+  .kind { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--info) 10%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); }
+  .kind.mercury { background: color-mix(in srgb, var(--violet) 10%, transparent); color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent); }
   .status { margin-left: auto; font-size: 13px; } .status.active { color: var(--ok); } .status.inactive { color: var(--muted); }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 13px; }
   .lbl { display: block; color: var(--muted); font-size: 12px; }

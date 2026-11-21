@@ -24,7 +24,7 @@ export async function createOrg(name: string, id = newId('org')): Promise<string
 }
 
 /** Create the org if missing. Returns its id. */
-export async function ensureOrg(id = DEFAULT_ORG_ID(), name = 'LaceLuxx'): Promise<string> {
+export async function ensureOrg(id = DEFAULT_ORG_ID(), name = 'Demo Company'): Promise<string> {
   await initDb();
   const [row] = await getRootDb().select({ id: schema.orgs.id }).from(schema.orgs).where(eq(schema.orgs.id, id));
   return row ? id : createOrg(name, id);

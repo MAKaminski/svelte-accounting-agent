@@ -42,7 +42,7 @@
   }
 </script>
 
-<svelte:head><title>Members · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Members · Accounting Agent</title></svelte:head>
 <header class="head">
   <h1>Members</h1>
   <span class="muted">{page.data.me?.orgName} · {people} member{people === 1 ? '' : 's'}{pending ? ` · ${pending} invite${pending === 1 ? '' : 's'} pending` : ''}</span>
@@ -151,13 +151,13 @@
   .tokhead { display: flex; align-items: baseline; gap: 10px; }
   .tokform { display: flex; gap: 8px; }
   .tokform input { flex: 1; }
-  .once { padding: 10px 12px; border-radius: 6px; background: #f0fdf4; border: 1px solid #86efac; color: #166534; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .once { padding: 10px 12px; border-radius: 6px; background: var(--ok-soft); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
   .oncerow { display: flex; gap: 8px; align-items: center; }
-  .oncerow code { flex: 1; padding: 6px 8px; background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: nowrap; }
+  .oncerow code { flex: 1; padding: 6px 8px; background: var(--sunken); color: var(--text); border: 1px solid var(--line-strong); border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: nowrap; }
   .trow { display: grid; grid-template-columns: 1.4fr 1.4fr 1.2fr auto; gap: 12px; align-items: center; font-size: 13px; }
   .trow.revoked { opacity: 0.55; }
   .danger-text { color: var(--danger); }
-  .ok { background: #166534; color: #fff; border: 0; }
+  .ok { background: var(--ok); color: #06150d; border: 0; }
   .confirm { position: fixed; bottom: 24px; right: 24px; max-width: 420px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); z-index: 20; }
   .confirm p { margin: 0 0 10px; }
   @media (max-width: 900px) { .layout { flex-direction: column; } .side { width: 100%; } .row { grid-template-columns: 1fr 1fr; } }

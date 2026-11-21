@@ -20,7 +20,7 @@
   const Graph = import('$lib/components/SystemGraph.svelte');
 </script>
 
-<svelte:head><title>System · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>System · Accounting Agent</title></svelte:head>
 
 {#if data.error || !data.graph}
   <ErrorState message={data.error?.message ?? 'No data'} source={data.error?.source} onretry={() => invalidateAll()} />
@@ -83,13 +83,13 @@
   .loading { height: 100%; padding: 16px; }
   .legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 10px; font-size: 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; z-index: 5; flex-wrap: wrap; }
   .lg::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--line-strong); background: var(--surface); }
-  .lg.agent::before { background: #eff6ff; border-color: #93c5fd; } .lg.tool::before { background: #f5f3ff; border-color: #c4b5fd; }
+  .lg.agent::before { background: var(--accent-tint); border-color: var(--accent-solid); } .lg.tool::before { background: color-mix(in srgb, var(--violet) 12%, transparent); border-color: var(--violet); }
   .lg.human::before { border-style: dashed; } .lg.off::before { background: var(--muted-surface); border-color: var(--line); } .lg.degraded::before { border-color: var(--danger); }
   .panel { flex: 1 1 300px; max-width: 380px; padding: 18px; display: flex; flex-direction: column; gap: 10px; align-self: flex-start; }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   code { font-family: var(--mono); font-size: 13px; font-weight: 500; word-break: break-all; }
   .kind { padding: 2px 8px; border-radius: 10px; background: var(--line-soft); font-size: 11px; font-weight: 600; }
-  .kind.agent { background: #dbeafe; color: #1e3a8a; } .kind.tool { background: #ede9fe; color: #5b21b6; }
+  .kind.agent { background: var(--accent-tint); color: var(--link); border: 1px solid color-mix(in srgb, var(--accent-solid) 45%, transparent); } .kind.tool { background: color-mix(in srgb, var(--violet) 10%, transparent); color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent); }
   .sum { margin: 0; font-size: 13px; color: var(--ink-2); }
   .toggle { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; gap: 10px; flex-wrap: wrap; }
   dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; margin: 0; font-size: 13px; } dt { color: var(--muted); } dd { margin: 0; word-break: break-word; }

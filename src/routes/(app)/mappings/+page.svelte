@@ -23,7 +23,7 @@
   }
 </script>
 <svelte:window onkeydown={onKey} />
-<svelte:head><title>Rules · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Rules · Accounting Agent</title></svelte:head>
 <h1>Learned rules</h1>
 <p class="muted lead">After 3 approvals of the same merchant to the same account with no conflicts, the agent proposes a Slash mapping. Applying it makes Slash code that merchant automatically — no model call.</p>
 {#if data.error}

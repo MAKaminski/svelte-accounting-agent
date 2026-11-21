@@ -20,7 +20,7 @@
   }
   const useGuess = (id: string, guess: string | null) => { if (guess) answers[id] = `Yes — ${guess}`; };
 </script>
-<svelte:head><title>Questions · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Questions · Accounting Agent</title></svelte:head>
 <h1>Questions for the owner</h1>
 {#if data.error}
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />

@@ -19,7 +19,7 @@
     catch (e) { ui.toast((e as Error).message, { kind: 'error', ms: 8000 }); } finally { busy = null; (ev.target as HTMLInputElement).value = ''; }
   }
 </script>
-<svelte:head><title>Settings · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Settings · Accounting Agent</title></svelte:head>
 <h1>Settings</h1>
 {#if data.error || !data.s}
   <ErrorState message={data.error?.message ?? 'No data'} source={data.error?.source} onretry={() => invalidateAll()} />

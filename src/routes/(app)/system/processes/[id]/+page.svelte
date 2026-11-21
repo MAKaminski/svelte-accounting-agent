@@ -6,7 +6,7 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>{data.c?.id ?? 'Component'} · System · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>{data.c?.id ?? 'Component'} · System · Accounting Agent</title></svelte:head>
 <a class="back" href="/system?c={data.c?.id ?? ''}">← Graph</a>
 {#if data.error || !data.c}
   <ErrorState message={data.error?.message ?? 'Not found'} source={data.error?.source} onretry={() => invalidateAll()} />
@@ -66,7 +66,7 @@
   h2 { margin: 0; font-size: 18px; } code { font-family: var(--mono); }
   .push { margin-left: auto; }
   .kind { padding: 2px 8px; border-radius: 10px; background: var(--line-soft); font-size: 11px; font-weight: 600; }
-  .kind.agent { background: #dbeafe; color: #1e3a8a; } .kind.tool { background: #ede9fe; color: #5b21b6; }
+  .kind.agent { background: var(--accent-tint); color: var(--link); border: 1px solid color-mix(in srgb, var(--accent-solid) 45%, transparent); } .kind.tool { background: color-mix(in srgb, var(--violet) 10%, transparent); color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent); }
   .st { font-size: 13px; } .st.active { color: var(--ok); } .st.off { color: var(--muted); } .st.degraded { color: var(--danger); }
   .pane { padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
   h3 { margin: 0; font-size: 15px; } .thin { font-weight: 400; font-size: 13px; }

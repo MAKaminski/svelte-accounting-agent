@@ -17,7 +17,7 @@
   function onKey(ev: KeyboardEvent) { if (ev.key === 'v' && !running && !ui.paletteOpen && !(ev.target instanceof HTMLInputElement)) run(); }
 </script>
 <svelte:window onkeydown={onKey} />
-<svelte:head><title>Evals · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Evals · Accounting Agent</title></svelte:head>
 <header><h1>Evals &amp; precision</h1><button class="btn dark" type="button" onclick={run} disabled={running}>{running ? 'Running…' : 'Run evals'} <span class="kbd">v</span></button></header>
 {#if running}<div class="bar" role="progressbar" aria-label="Running evals"><div></div></div>{/if}
 {#if data.error || !data.summary}

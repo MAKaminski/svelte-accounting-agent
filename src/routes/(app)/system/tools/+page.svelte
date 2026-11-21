@@ -6,7 +6,7 @@
   const byTarget = $derived([...new Set(data.tools.map((t) => t.target ?? 'other'))].map((target) => ({ target, tools: data.tools.filter((t) => (t.target ?? 'other') === target) })));
 </script>
 
-<svelte:head><title>Tools · System · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Tools · System · Accounting Agent</title></svelte:head>
 {#if data.error}
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />
 {:else if !data.tools.length}

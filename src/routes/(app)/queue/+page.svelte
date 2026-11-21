@@ -9,11 +9,11 @@
   const isReviewer = $derived(['owner', 'reviewer'].includes(page.data.me?.role ?? ''));
 
   const filters = [
-    { key: 'recommended', label: 'Recommended' },
-    { key: 'asked', label: 'Asked' },
-    { key: 'invalid', label: 'Invalid' },
+    { key: 'recommended', label: 'To review' },
+    { key: 'asked', label: 'Waiting on owner' },
+    { key: 'invalid', label: "Can't code" },
     { key: 'approved', label: 'Sending' },
-    { key: 'ready', label: 'Ready' }
+    { key: 'ready', label: 'Done' }
   ];
   let hidden = $state<Set<string>>(new Set());
   let pulling = $state(false);
@@ -72,32 +72,71 @@
     else if ((ev.key === 'Enter' || ev.key === 'e' || ev.key === 'q') && rows[i]) goto(`/entry/${rows[i].id}`);
     else if (ev.key === 'u') { const t = [...ui.toasts].reverse().find((x) => x.undo); if (t) t.undo!().then(() => ui.dismiss(t.id)); }
   }
-  const confClass = (c: number) => (c >= 0.9 ? 'hi' : c >= 0.75 ? 'mid' : 'lo');
-  const acct = (e: Entry) => !e.recommendation ? '—' : e.recommendation.model.startsWith('off:') ? 'Manual (agent off)' : e.recommendation.action === 'ask' ? 'Question' : e.recommendation.lines.length > 1 ? `Split (${e.recommendation.lines.length} lines)` : e.recommendation.lines[0]?.accountName;
+  const day = (iso: string | null) => (iso ? new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '');
+  const initials = (s: string) => s.replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+  // Routine = the agent coded it (not a question) with high confidence. Bulk approve still records one decision,
+  // one audit row and one undo window per item.
+  const routine = $derived(rows.filter((e) => e.state === 'recommended' && e.recommendation?.action === 'code' && e.recommendation.confidence >= 0.9));
+  let confirmBulk = $state(false);
+  let bulkBusy = $state(false);
+  async function approveRoutine() {
+    const batch = [...routine];
+    confirmBulk = false; bulkBusy = true;
+    hidden = new Set([...hidden, ...batch.map((e) => e.id)]);
+    const done: Entry[] = [];
+    try {
+      for (const e of batch) { await call('entry.approve', { id: e.id, yes: true, later: true }); done.push(e); }
+      ui.toast(`Approved ${done.length} routine transactions`, {
+        undo: async () => {
+          for (const e of done) await call('entry.undo', { id: e.id }).catch(() => undefined);
+          hidden = new Set([...hidden].filter((x) => !done.some((e) => e.id === x)));
+          await invalidateAll();
+        }
+      });
+    } catch (err) {
+      hidden = new Set([...hidden].filter((x) => done.some((e) => e.id === x)));
+      ui.toast(`Stopped after ${done.length} of ${batch.length}: ${(err as Error).message}`, { kind: 'error', ms: 8000 });
+    } finally { bulkBusy = false; await invalidateAll(); }
+  }
+  const acct = (e: Entry) => !e.recommendation ? '—' : e.recommendation.model.startsWith('off:') ? 'Manual (agent off)' : e.recommendation.action === 'ask' ? 'Needs your answer' : e.recommendation.lines.length > 1 ? `Split (${e.recommendation.lines.length} lines)` : e.recommendation.lines[0]?.accountName;
 </script>
 
 <svelte:window onkeydown={onKey} />
-<svelte:head><title>Queue · LaceLuxx Books</title></svelte:head>
+<svelte:head><title>Queue · Accounting Agent</title></svelte:head>
 
 <header>
-  <h1>Review queue</h1>
-  <span class="muted">{counts.recommended ?? 0} to review</span>
-  <button class="btn dark" type="button" onclick={pull} disabled={pulling}>
-    {#if pulling}<span class="spin" aria-hidden="true"></span> Pulling…{:else}Pull entries <span class="kbd">p</span>{/if}
-  </button>
+  <div>
+    <h1>Review queue</h1>
+    <p class="sub">{#if counts.recommended}{counts.recommended} transaction{counts.recommended === 1 ? '' : 's'} coded by the agent {counts.recommended === 1 ? 'is' : 'are'} waiting for you{#if routine.length && data.state === 'recommended'}. {routine.length} look routine{/if}.{:else}You're all caught up.{/if}</p>
+  </div>
+  <div class="actions">
+    <button class="btn" type="button" onclick={pull} disabled={pulling}>
+      {#if pulling}<span class="spin" aria-hidden="true"></span> Pulling…{:else}Pull entries <span class="kbd">p</span>{/if}
+    </button>
+    {#if data.state === 'recommended' && routine.length > 1 && isReviewer}
+      {#if confirmBulk}
+        <button class="btn primary" type="button" onclick={approveRoutine} disabled={bulkBusy}>Confirm: approve {routine.length}</button>
+        <button class="btn ghost" type="button" onclick={() => (confirmBulk = false)}>Cancel</button>
+      {:else}
+        <button class="btn primary" type="button" onclick={() => (confirmBulk = true)} disabled={bulkBusy} title="Coded with confidence 0.90 or higher. Each one keeps its own undo window.">Approve {routine.length} routine</button>
+      {/if}
+    {/if}
+  </div>
 </header>
 
-<div class="chips" role="tablist" aria-label="Filter by state">
-  {#each filters as f}
-    <a role="tab" aria-selected={data.state === f.key} class="chip" class:on={data.state === f.key} href={qs({ state: f.key })} data-sveltekit-noscroll>{f.label} {counts[f.key] ?? 0}</a>
-  {/each}
-</div>
-{#if ledgers.length > 1}
-  <div class="chips" role="group" aria-label="Filter by ledger">
-    <a class="chip" class:on={!data.connection} href={qs({ connection: null })} data-sveltekit-noscroll>All ledgers</a>
-    {#each ledgers as [id, name]}<a class="chip" class:on={data.connection === id} href={qs({ connection: id })} data-sveltekit-noscroll>{name}</a>{/each}
+<div class="filters">
+  <div class="chips" role="tablist" aria-label="Filter by state">
+    {#each filters as f}
+      <a role="tab" aria-selected={data.state === f.key} class="chip" class:on={data.state === f.key} href={qs({ state: f.key })} data-sveltekit-noscroll>{f.label} <b class:bad={f.key === 'invalid' && (counts[f.key] ?? 0) > 0 && data.state !== f.key}>{counts[f.key] ?? 0}</b></a>
+    {/each}
   </div>
-{/if}
+  {#if ledgers.length > 1}
+    <div class="chips right" role="group" aria-label="Filter by ledger">
+      <a class="chip" class:on={!data.connection} href={qs({ connection: null })} data-sveltekit-noscroll>All ledgers</a>
+      {#each ledgers as [id, name]}<a class="chip" class:on={data.connection === id} href={qs({ connection: id })} data-sveltekit-noscroll>{name}</a>{/each}
+    </div>
+  {/if}
+</div>
 
 {#if pullError}<ErrorState message={pullError.message} source={pullError.source} onretry={pull} />{/if}
 
@@ -105,13 +144,14 @@
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />
 {:else if pulling && !data.all.length}
   <div class="card table" aria-label="Loading">
-    {#each Array(6) as _}<div class="skeleton" style="height: 30px; margin: 12px 16px;"></div>{/each}
+    {#each Array(7) as _}<div class="skeleton" style="height: 22px; margin: 16px 20px;"></div>{/each}
   </div>
 {:else if !rows.length}
   <div class="card empty">
-    <p class="big">{data.state === 'recommended' ? 'Nothing to review.' : `No ${filters.find((f) => f.key === data.state)?.label.toLowerCase()} entries.`}</p>
-    <p class="muted">{data.all.length ? `${data.all.length} entries in other states.` : 'No entries pulled yet.'}</p>
-    {#if data.state === 'recommended'}<button class="btn dark" type="button" onclick={pull}>Pull entries</button>{/if}
+    <span class="ring" aria-hidden="true">✓</span>
+    <p class="big">{data.state === 'recommended' ? 'Nothing to review.' : `Nothing here: ${filters.find((f) => f.key === data.state)?.label.toLowerCase()}.`}</p>
+    <p class="muted">{data.all.length ? `${data.all.length} entries in other states.` : 'No entries pulled yet. Pull to fetch transactions from your ledgers.'}</p>
+    {#if data.state === 'recommended'}<button class="btn" type="button" onclick={pull}>Pull entries</button>{/if}
   </div>
 {:else}
   {#if data.state === 'recommended' && invalidCount}
@@ -119,23 +159,33 @@
   {/if}
   <div class="card table">
     <div class="row head" role="row">
-      <span>Date</span><span>Merchant</span><span class="r">Amount</span><span>Account</span><span>Conf</span><span class="why">Why</span><span></span>
+      <span>Date</span><span>Merchant</span><span class="r">Amount</span><span>Account</span><span>Confidence</span><span>Why</span><span></span>
     </div>
     {#each rows as e (e.id)}
-      <div class="row" role="row" class:sel={ui.selectedId === e.id} class:ask={e.recommendation?.action === 'ask' || e.state === 'asked'} class:bad={e.state === 'invalid'}
+      {@const rec = e.recommendation}
+      {@const asks = rec?.action === 'ask' || e.state === 'asked'}
+      <div class="row" role="row" class:sel={ui.selectedId === e.id} class:ask={asks} class:bad={e.state === 'invalid'}
         tabindex="0" onfocus={() => (ui.selectedId = e.id)} onclick={() => (ui.selectedId = e.id)} ondblclick={() => goto(`/entry/${e.id}`)}
         onkeydown={(ev) => { if (ev.key === 'Enter' && ev.target === ev.currentTarget) { ev.stopPropagation(); goto(`/entry/${e.id}`); } }} aria-selected={ui.selectedId === e.id}>
-        <span class="mono muted">{e.date}</span>
-        <span class="mcell"><a class="merchant" href="/entry/{e.id}">{e.merchantName ?? e.description}</a>{#if ledgers.length > 1}<span class="lbadge {e.ledgerKind}">{e.ledgerName}</span>{/if}</span>
+        <span class="mono muted date">{day(e.date)}</span>
+        <span class="mcell">
+          <span class="avatar" aria-hidden="true">{initials(e.merchantName ?? e.description ?? "")}</span>
+          <a class="merchant" href="/entry/{e.id}" title={e.merchantName ?? e.description}>{e.merchantName ?? e.description}</a>
+          {#if ledgers.length > 1}<span class="lbadge {e.ledgerKind}">{e.ledgerName}</span>{/if}
+        </span>
         <span class="r mono" class:credit={e.amountCents > 0}>{money(e.amountCents)}</span>
-        <span>{acct(e)}</span>
-        <span class="mono {e.recommendation ? confClass(e.recommendation.confidence) : ''}">{e.recommendation?.confidence.toFixed(2) ?? ''}</span>
-        <span class="why muted">{e.state === 'invalid' ? e.stateReason : e.recommendation?.action === 'ask' ? e.recommendation.question : e.recommendation?.reasoning}</span>
+        <span class="acct" class:q={asks} class:f={e.state === 'invalid'}>{e.state === 'invalid' ? "Can't code yet" : acct(e)}</span>
+        <span class="conf">
+          {#if rec && rec.action === 'code' && !rec.model.startsWith('off:')}
+            <span class="meter" class:low={rec.confidence < 0.75}><i style="width: {Math.round(rec.confidence * 100)}%"></i></span><span class="mono small">{rec.confidence.toFixed(2)}</span>
+          {:else}<span class="muted small">{asks ? 'Needs you' : '—'}</span>{/if}
+        </span>
+        <span class="why" title={e.state === 'invalid' ? e.stateReason : asks ? rec?.question : rec?.reasoning}>{e.state === 'invalid' ? e.stateReason : rec?.action === 'ask' ? rec.question : rec?.reasoning}</span>
         <span class="act">
-          {#if e.state === 'recommended' && e.recommendation?.action === 'code'}
-            <button class="btn sm primary" type="button" disabled={!isReviewer} title={isReviewer ? undefined : 'Reviewer role needed'} onclick={(ev) => { ev.stopPropagation(); approveRow(e); }}>Approve <span class="kbd">a</span></button>
+          {#if e.state === 'recommended' && rec?.action === 'code'}
+            <button class="btn sm" class:primary={ui.selectedId === e.id} type="button" disabled={!isReviewer} title={isReviewer ? undefined : 'Reviewer role needed'} onclick={(ev) => { ev.stopPropagation(); approveRow(e); }}>Approve {#if ui.selectedId === e.id}<span class="kbd">a</span>{/if}</button>
           {:else if e.state === 'recommended' || e.state === 'asked'}
-            <a class="btn sm warn" href="/entry/{e.id}">{e.state === 'asked' ? 'Asked' : e.recommendation?.model.startsWith('off:') ? 'Code' : 'Answer'}</a>
+            <a class="btn sm" href="/entry/{e.id}">{e.state === 'asked' ? 'Asked' : rec?.model.startsWith('off:') ? 'Code' : 'Answer'}</a>
           {:else if e.state === 'invalid'}
             <a class="btn sm" href="/entry/{e.id}">Fix</a>
           {:else}
@@ -145,37 +195,48 @@
       </div>
     {/each}
   </div>
-  <p class="muted small hint">j / k move · a approve · Enter open · p pull · u undo · ⌘K commands</p>
+  <p class="muted small hint"><span class="kbd">j</span> <span class="kbd">k</span> move <span class="kbd">a</span> approve <span class="kbd">Enter</span> open <span class="kbd">p</span> pull <span class="kbd">u</span> undo <span class="kbd">⌘K</span> commands</p>
 {/if}
 
 <style>
-  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  h1 { margin: 0; font-size: 22px; font-weight: 600; }
-  header .btn { margin-left: auto; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-  .chip { display: inline-flex; align-items: center; text-decoration: none; }
+  header { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { margin: 0; }
+  .sub { margin: 4px 0 0; color: var(--text-2); }
+  .actions { margin-left: auto; display: flex; gap: 8px; }
+  .filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chips.right { margin-left: auto; }
+  .chip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chip b.bad { color: var(--danger); }
   .table { overflow-x: auto; }
-  .row { display: grid; grid-template-columns: 96px minmax(140px, 1.3fr) 104px minmax(140px, 1.3fr) 56px minmax(180px, 2fr) 116px; gap: 12px; padding: 11px 16px; align-items: center; border-bottom: 1px solid var(--line-soft); min-width: 920px; cursor: default; }
-  .row.head { font-size: 12px; font-weight: 500; color: var(--muted); background: var(--muted-surface); border-bottom-color: var(--line); }
-  .row.sel { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
-  .row.ask { background: var(--warn-soft); }
-  .row.bad { background: var(--danger-soft); box-shadow: inset 3px 0 0 var(--danger); }
+  .row { display: grid; grid-template-columns: 62px minmax(200px, 1.5fr) 104px minmax(150px, 1.1fr) 104px minmax(180px, 2.2fr) 104px; gap: 16px; padding: 0 20px; min-height: 54px; align-items: center; border-bottom: 1px solid var(--hair-soft); min-width: 980px; cursor: default; font-size: 13.5px; transition: background var(--t-fast) var(--ease); animation: rowin var(--t) var(--ease); }
+  @keyframes rowin { from { opacity: 0; } to { opacity: 1; } }
+  .row:last-child { border-bottom: 0; }
+  .row:not(.head):hover { background: var(--hair-soft); }
+  .row.head { min-height: 40px; font-size: 12.5px; color: var(--text-muted); background: var(--sunken); border-bottom-color: var(--hair); position: sticky; top: 0; z-index: 1; animation: none; }
+  .row.sel { box-shadow: inset 2px 0 0 var(--accent-solid); background: var(--accent-tint); }
+  .row.bad { box-shadow: inset 2px 0 0 var(--danger); }
   .r { text-align: right; }
-  .mcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .lbadge { align-self: flex-start; padding: 0 6px; border-radius: 8px; font-size: 10px; font-weight: 600; background: #e0f2fe; color: #075985; }
-  .lbadge.mercury { background: #ede9fe; color: #5b21b6; }
-  .merchant { font-weight: 500; color: var(--ink); text-decoration: none; }
+  .date { font-size: 12.5px; }
+  .mcell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .lbadge { flex-shrink: 0; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 500; border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); color: var(--info); }
+  .lbadge.mercury { border-color: color-mix(in srgb, var(--violet) 35%, transparent); color: var(--violet); }
+  .merchant { font-weight: 500; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .merchant:hover { text-decoration: underline; }
   .credit { color: var(--ok); }
-  .hi { color: var(--ok); } .mid { color: var(--ink-2); } .lo { color: var(--warn); }
-  .why { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acct.q { color: var(--warn); } .acct.f { color: var(--danger); }
+  .conf { display: flex; align-items: center; gap: 8px; }
+  .why { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .act { display: flex; justify-content: flex-end; }
-  .empty { padding: 56px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .big { font-size: 16px; font-weight: 500; margin: 0; }
+  .empty { padding: 64px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+  .ring { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); font-size: 18px; border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
+  .big { font-size: 16px; font-weight: 500; margin: 4px 0 0; }
   .empty p { margin: 0; }
   .partial { margin: 0 0 10px; font-size: 13px; color: var(--danger); }
-  .small { font-size: 12px; }
-  .hint { margin-top: 10px; }
+  .hint { margin-top: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .hint .kbd { margin-left: 8px; }
+  .hint .kbd:first-child { margin-left: 0; }
   .spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>

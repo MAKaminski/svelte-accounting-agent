@@ -41,6 +41,7 @@ test('members: invite, change role, cancel; token shown once then revoked', asyn
 
 test('nav shows the signed-in identity and a Members link for owners', async ({ page }) => {
   await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
-  await expect(page.getByText('owner@local · owner')).toBeVisible();
+  await expect(page.getByRole('navigation').getByText('owner@local', { exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation').getByText('owner', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Members' })).toBeVisible();
 });
