@@ -8,10 +8,11 @@ Codes LaceLuxx's Slash transactions to QuickBooks accounts, explains why, asks t
 
 | Item | Value |
 |---|---|
-| Run locally | `pnpm i && pnpm db:migrate && pnpm db:seed && pnpm dev` |
+| Run locally | `pnpm i && pnpm db:reset && pnpm db:seed && pnpm dev` (Postgres in-process via PGlite at `data/pglite`; no Docker) |
 | Local URL | `http://localhost:5173` → `/queue` |
-| Deployed URL | Not deployed in v1 (local only) |
-| Auth | `APP_PASSCODE` gate on every route (cookie after `/login`); CLI sends it as `x-books-passcode`. Unset = open local dev, flagged in the nav |
+| Deployed URL | `https://laceluxx-books.fly.dev` (Fly.io iad + Neon Postgres; first deploy in M9 step 5) |
+| Auth | Google sign-in, invite-only (Workspace accounts; Auth.js at `/auth/*`). Locally with no `AUTH_GOOGLE_ID`: dev bypass, you are `owner@local` (refused in production). CLI: `BOOKS_TOKEN` from Settings → Members (`Authorization: Bearer llx_…`). First owner of a deployment: `pnpm org:invite <google-email>` |
+| Roles | viewer (read), reviewer (decide on entries), owner (ledgers, switches, members, tokens) — per command in the registry, enforced in `handle()` |
 | First screen | `/queue`: entries needing review, newest first, recommendation + confidence + Approve per row |
 | CLI | `pnpm books --help` (dev) · `node dist/books.mjs` (built) |
 
@@ -30,9 +31,11 @@ Codes LaceLuxx's Slash transactions to QuickBooks accounts, explains why, asks t
 | `/system/tools` | Tools by external system | System tabs | `GET /api/system/components?kind=tool` | follows `Entry` cards |
 | `/system/processes/[id]` | Card, live state graph, runs | Graph node, tables | `GET /api/system/components/:id` | follows `Entry` layout |
 | `/ledgers` | Ledger connections: capabilities, blockers, test, activate, configure bank mapping, add | Nav | `GET /api/ledgers`, `GET /api/ledgers/:id` | canvas `Ledgers` |
-| `/login` | Passcode | Any route when signed out | form action | — |
+| `/login` | Sign in with Google; "isn't invited" state | Any route when signed out | Auth.js `/auth/signin/google` | canvas `Members` (login panel) |
+| `/settings/members` | Members + pending invites (role, last seen), invite, change role, remove; API tokens (shown once, revoke) | Nav (owners) | `GET /api/members`, `GET /api/tokens` | canvas `Members` |
+| Nav company switcher | Companies you belong to; switching reloads in that company | Every screen (hidden with one company) | `GET /api/orgs`, `POST /api/orgs/:id/select` | canvas `Members` (header) |
 
-Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`, `States` artboards). Every screen has empty, loading (skeleton / progress bar), error (source-tagged: Slash, QuickBooks, Model, with Retry), partial (invalid rows red, rest usable) and success states.
+Designed mockups: Claude design canvas "LaceLuxx Books screens" (`Main`, `Entry`, `States`, `System`, `Ledgers`, `Members` artboards). Every screen has empty, loading (skeleton / progress bar), error (source-tagged: Slash, QuickBooks, Model, with Retry), partial (invalid rows red, rest usable) and success states.
 
 ### Actions
 <!-- gen:actions -->
@@ -151,7 +154,11 @@ flowchart LR
   SY -->|"tab Agents"| SA["/system/agents"]
   SY -->|"tab Tools"| ST["/system/tools"]
   SA -->|"switch t"| SA
-  X["/login"] -->|"passcode"| L
+  X["/login"] -->|"Sign in with Google (invited)"| L
+  X -->|"not invited"| X
+  S -->|"nav Members (owner)"| MB["/settings/members"]
+  MB -->|"Invite / role / remove / token"| MB
+  L -->|"company switcher"| L
 ```
 
 ## 2. Systems architecture
@@ -159,17 +166,21 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph FE[Front-end]
-    UI["SvelteKit UI /queue /entry /questions /mappings /evals /settings"]
-    CLI["books CLI (dist/books.mjs)"]
+    UI["SvelteKit UI /queue /entry /questions /mappings /evals /ledgers /system /settings /settings/members"]
+    LOGIN["/login (Google)"]
+    CLI["books CLI (dist/books.mjs, BOOKS_TOKEN)"]
     PAL["⌘K palette + shortcuts"]
   end
   subgraph MW[Middleware]
-    API["SvelteKit server routes /api/*"]
-    REG["commands.ts + processes.yaml"]
+    AUTH["Auth.js /auth/* (Google, JWT cookie)"]
+    HOOK["hooks: identity → company → role → withOrg"]
+    IDN["identity.ts MW.auth.signin, tokens"]
+    API["SvelteKit server routes /api/* (handle: role check + audit)"]
+    REG["commands.ts (role per command) + processes.yaml"]
     PROC["process handlers (src/lib/server/processes)"]
-    SCH["scheduler: commit tick 1 s, pull, daily COA + backup"]
-    SLC["SlashPort: LiveSlash | FixtureSlash"]
-    QBC["QboPort read-only: LiveQbo | FixtureQbo"]
+    SCH["scheduler: per-company commit timers, pull, daily COA (advisory-lock leader)"]
+    LED["LedgerAdapters: Slash | Mercury"]
+    QBC["QboPort read + QboWriter"]
   end
   subgraph AI[Middleware - AI]
     ID["AI.merchant.identify (Ollama 8B or Haiku 5.5 low)"]
@@ -177,18 +188,25 @@ flowchart LR
     EV["eval harness IN.evals.run"]
   end
   subgraph BE[Back-end]
-    DB[("SQLite data/books.db · Drizzle · WAL")]
+    DB[("Neon Postgres (direct endpoint) · RLS per company · role books_app<br/>local/tests: PGlite")]
   end
   subgraph IN[Infrastructure]
-    C["app container node:22-slim [0.5 vCPU / 512Mi]"]
+    C["Fly machine laceluxx-books iad [shared-cpu-1x / 512Mi] ×1"]
+    NEON["Neon Free aws-us-east-1 [0.25 CU, scale to zero]"]
     OL["optional ollama [8B Q4 · ~6 GB]"]
   end
-  UI --> API
+  LOGIN --> AUTH --> GOOG[(Google OAuth)]
+  AUTH --> IDN
+  UI --> HOOK
+  CLI --> HOOK
   PAL --> REG
-  CLI --> REG --> API
+  HOOK --> IDN
+  HOOK --> API
+  API --> REG
   API --> PROC
   SCH --> PROC
-  PROC --> SLC --> SLASH[(Slash API)]
+  PROC --> LED --> SLASH[(Slash API)]
+  LED --> MERC[(Mercury API)]
   PROC --> QBC --> QBO[(QuickBooks Online)]
   SLASH -. native sync .-> QBO
   PROC --> ID
@@ -196,7 +214,9 @@ flowchart LR
   EV --> REC
   EV --> ID
   PROC --> DB
+  IDN --> DB
   C --- API
+  NEON --- DB
   OL -. optional .- ID
 ```
 
@@ -204,13 +224,17 @@ Products and what they use:
 
 | Product / feature | Components | Tables owned | Models / agents |
 |---|---|---|---|
-| Review queue | UI `/queue`, `MW.ledger.pull`, `MW.entry.research`, `FE.entry.approve`, `MW.ledger.code`, `MW.ledger.ready` | `accounting_entries`, `slash_transactions`, `evidence`, `decisions` | `AI.entry.recommend` (Haiku 5.5 low) |
+| Review queue | UI `/queue`, `MW.ledger.pull`, `MW.entry.research`, `FE.entry.approve`, `MW.ledger.code`, `MW.ledger.ready` | `ledger_items`, `ledger_transactions`, `evidence`, `decisions` | `AI.entry.recommend` (Haiku 5.5 low) |
 | Unknown merchants | `MW.entry.research` | `evidence` | `AI.merchant.identify` (Ollama or Haiku 5.5 low) |
 | Owner questions | UI `/questions`, `FE.entry.ask`, `FE.question.answer` | `questions` | re-runs `AI.entry.recommend` |
 | Payout splits | `MW.payouts.import` | `payout_rows` | `AI.entry.recommend` (Sonnet 5.5 medium) |
 | Learned rules | `MW.mapping.propose`, `FE.mapping.apply` | `mapping_proposals` | none (Tier 0; replaces model calls) |
 | Evals & precision | `IN.evals.run`, `/evals` | `eval_cases`, `runs` | both AI steps |
 | QuickBooks connect | `MW.qbo.connect` | `qbo_tokens` | none |
+| Ledger connections | `/ledgers`, adapters, `MW.qbo.write` | `ledger_connections`, `ledger_items`, `ledger_transactions`, `local_mappings` | none |
+| Companies (tenancy) | `MW.org.create`, hooks, `withOrg`, RLS | `orgs` (+ `org_id` on every tenant table) | none |
+| Sign-in & members | `/login`, `MW.auth.signin`, `/settings/members`, `FE.member.*`, `FE.token.*`, `FE.org.select` | `users`, `memberships`, `invites`, `api_tokens` | none |
+| Audit | `MW.audit.record` (in `handle()`) | `audit_log` | none |
 
 **Key decision — the ledger's own sync is the write path when it has one.** Slash creates an accounting entry per settled transaction and syncs it to QuickBooks, so Slash items are coded in Slash and the app never writes QuickBooks for them. Ledgers that can't code for QuickBooks (Mercury) are written to QuickBooks directly under the guardrail in §4c.
 
@@ -505,7 +529,7 @@ sequenceDiagram
   participant MW as SvelteKit server (rules)
   participant SL as Slash API
   participant QB as QuickBooks API
-  participant DB as SQLite
+  participant DB as Postgres (company RLS)
   participant H as Haiku 5.5 low
   participant U as Reviewer (/queue)
   CRON->>MW: MW.ledger.pull (p95 10s per 100)
@@ -522,6 +546,7 @@ sequenceDiagram
   U->>MW: FE.entries.list GET /api/entries (p95 300ms)
   U->>MW: FE.entry.approve POST /api/entries/:id/approve (p95 800ms)
   MW-->>U: FE.entry.approve toast with Undo (10 s window)
+  Note over MW: commit runs on this company's timer at pending_until (no polling tick)
   MW->>SL: MW.ledger.code PATCH /v2/accounting/entries/{id} (p95 1.5s)
   MW->>SL: MW.ledger.ready POST mark-ready (p95 1.5s)
   MW->>DB: MW.mapping.propose 3+ consistent approvals → proposal
@@ -867,22 +892,131 @@ sequenceDiagram
   MW-->>M: MW.ledger.annotate PATCH note (optional, off by default)
 ```
 
+## 4d. Companies, sign-in and roles (M8)
+
+**Tenancy.** Every tenant table has `org_id` (default `current_setting('app.org_id', true)`) and one row-level-security policy, `tenant_isolation USING/WITH CHECK (org_id = current_setting('app.org_id', true))`, generated into `drizzle/0001_rls.sql` by `scripts/gen-rls.ts` (`--check` in CI). Ids that come from outside (Slash/Mercury ids, `qbo:<Id>`, `conn_slash`) use composite keys `(org_id, id)`, so two companies can hold the same external id. Tables without RLS: `orgs`, `users` (global; read by exact key only).
+
+**How a request becomes a company context.** `hooks.server.ts` resolves the caller — Google session (Auth.js), `Authorization: Bearer llx_…`, or the local dev bypass — to an identity, picks the company (`books_org` cookie if a member, else the first membership; tokens are pinned to their company) and runs the request inside `withOrg(company, …, actor)`. `withOrg` reserves a connection, sets `app.org_id`, and `SET ROLE books_app` (non-owner, RLS applies). The app connects as the database owner only so that identity lookups (which company does this email belong to?) work before a company is known; `getDb()` throws outside a company context. Queued jobs re-enter the company that queued them; the scheduler loops per company.
+
+**Roles** come from the command registry (`role` on every entry; `arch:check` fails without one, and no write is open to viewers except switching company). `handle()` returns 403 below the role and writes one `audit_log` row per successful write (actor = user id or `token:<id>`; keys matching token/secret/password/key/credential redacted).
+
+| Role | Can |
+|---|---|
+| viewer | every read (queue, entries, evals, system, ledgers) |
+| reviewer | + pull, recommend, approve, undo, ask, reject, answer, payouts, eval add |
+| owner | + switches, ledgers, mapping apply, COA pull, members, tokens |
+
+**Rules that keep it safe:** sign-in admits only a verified Google email with a membership or open invite (Workspace-only consent screen); a company always keeps ≥ 1 owner; removing a member revokes their tokens; tokens are `llx_` + 32 random bytes, stored as sha256, shown once, `last_used_at` written at most once a minute; production refuses to start without Google credentials (no dev bypass).
+
+### Google sign-in (invite accepted)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as Browser (/login)
+  participant A as Auth.js /auth/*
+  participant G as Google OAuth
+  participant I as identity.ts (rules)
+  participant DB as Postgres (owner conn)
+  U->>A: MW.auth.signin POST /auth/signin/google (p95 50ms)
+  A->>G: MW.auth.signin redirect, PKCE + state
+  G-->>A: MW.auth.signin /auth/callback/google?code (p95 600ms)
+  A->>I: MW.auth.signin signIn(email, sub, email_verified)
+  I->>DB: MW.auth.signin invites + memberships by email
+  alt invited or member
+    I->>DB: MW.auth.signin upsert user, accept invites → memberships
+    I-->>A: MW.auth.signin true
+    A-->>U: MW.auth.signin JWT cookie, redirect /queue
+  else neither
+    I-->>A: MW.auth.signin false
+    A-->>U: MW.auth.signin /login?error=AccessDenied ("isn't invited")
+  end
+```
+
+### Request in a company context
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as Browser / CLI
+  participant H as hooks.server.ts (rules)
+  participant I as identity.ts
+  participant R as handle() (registry role)
+  participant P as process handler
+  participant DB as Postgres
+  U->>H: FE.entry.approve POST /api/entries/:id/approve (p95 800ms)
+  H->>I: FE.entry.approve session email or Bearer token → identity (p95 15ms)
+  H->>DB: FE.entry.approve withOrg: set app.org_id, SET ROLE books_app
+  H->>R: FE.entry.approve role ≥ reviewer? else 403
+  R->>P: FE.entry.approve approve(entryId)
+  P->>DB: FE.entry.approve reads/writes (RLS: this company only)
+  R->>DB: MW.audit.record audit_log row (actor, process, redacted body)
+  R-->>U: FE.entry.approve 200 Decision
+```
+
+### CLI with a token
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant O as Owner (/settings/members)
+  participant C as books CLI
+  participant S as SvelteKit server
+  participant DB as Postgres
+  O->>S: FE.token.create POST /api/tokens (p95 60ms)
+  S->>DB: FE.token.create store sha256(llx_…)
+  S-->>O: FE.token.create raw token, shown once
+  C->>S: FE.entries.list GET /api/entries + Bearer (p95 300ms)
+  S->>DB: FE.entries.list hash lookup → user + company, RLS query
+  S-->>C: FE.entries.list Entry[]
+  O->>S: FE.token.revoke POST /api/tokens/:id/revoke --yes
+  C->>S: FE.entries.list GET /api/entries + Bearer
+  S-->>C: FE.entries.list 401 Invalid or revoked token
+```
+
+### Invite and token states
+
+```mermaid
+stateDiagram-v2
+  state Invite {
+    [*] --> open: FE.member.invite
+    open --> accepted: MW.auth.signin
+    open --> cancelled: FE.member.remove
+    accepted --> [*]
+    cancelled --> [*]
+  }
+  state Token {
+    [*] --> active: FE.token.create
+    active --> revoked: FE.token.revoke
+    active --> revoked_by_removal: FE.member.remove
+    revoked --> [*]
+    revoked_by_removal --> [*]
+  }
+```
+
 ## 5. Operating envelope
 
-Measured 2026-11-19 in this container (fixture mode, 72 entries). "est." = estimate with basis.
+Rows 1–3, 6–8 measured 2026-11-19 (SQLite era; front-end and AI paths unchanged since). Rows 4, 5, 9, 10 re-measured 2026-11-21 on Postgres (PGlite, production build, fixture mode, 31 entries in review). Hosted rows H1–H5 are targets until M9 step 6. "est." = estimate with basis.
 
 | # | Layer | Component | Metric | Target | Est. | Actual (2026-11-19) | Measured with |
 |---|---|---|---|---|---|---|---|
 | 1 | Front-end | `/queue` | LCP / CLS (prod build, local) | ≤ 2.5 s / ≤ 0.1 | 1.2 s | LCP p50 240 ms, worst 520 ms of 5 · CLS 0.000 · JS 79 KB gzip total | Playwright PerformanceObserver |
 | 2 | Front-end | Approve (queue row) | First feedback | ≤ 100 ms | 30 ms | 38 ms (row hide + toast) | Playwright |
 | 3 | Front-end | CLI | Startup to first output | ≤ 300 ms | 150 ms | `--help` p50 62 ms · `entries list` (HTTP) p50 111 ms, max 146 ms | 10-run timing (hyperfine not installed) |
-| 4 | Back-end | Queue query | p95 | ≤ 50 ms | 5 ms | 2 ms (handler incl. SQLite, 72 entries) | `server-timing` header, 100 runs |
-| 5 | Middleware | `GET /api/entries` | p50 / p95 / p99 | ≤ 300 ms p95 | 40 ms | 2.1 / 3.8 / 5.0 ms · `/queue` SSR p95 8.6 ms | curl loop, 200 runs |
+| 4 | Back-end | Queue query (incl. company context + RLS) | p95 | ≤ 50 ms | 8 ms | handler p50 7.0 / p95 10.0 ms (PGlite, 2026-11-21) | `server-timing` header, 100 runs |
+| 5 | Middleware | `GET /api/entries` | p50 / p95 / p99 | ≤ 300 ms p95 | 40 ms | 13.0 / 19.7 / 23.5 ms (PGlite + identity + RLS, 2026-11-21) | curl loop, 200 runs |
 | 6 | Middleware | Approve (2 Slash calls) | p95 | ≤ 800 ms | TBD — Slash latency unknown | fixture only | app `runs.detail_json.e2e_ms` |
 | 7 | AI | `AI.entry.recommend` (Haiku 5.5) | e2e | ≤ 4 s (batch, no TTFT target) | ~1.5 s | TBD — live key | `recommendations.ttft_ms / e2e_ms` |
 | 8 | AI | Recommend prefix | Cache hit rate | ≥ 70% of input | ~93% (≈1,400 cached / ≈100–300 fresh per call) | fixture-simulated 90%+ | `cache_read_input_tokens` |
-| 9 | Infrastructure | App process | Memory headroom at peak | ≥ 20% of 512Mi | ~150 MB RSS | peak RSS 157 MB → 69% headroom; limit could drop to 256Mi (157 × 1.3 = 204 MB) — re-check in Docker | /proc VmHWM after 330 requests (Docker not in this container) |
-| 10 | Infrastructure | Cold start | Process start → health 200 | ≤ 1 s | ~600 ms | 513 ms | shell timing |
+| 9 | Infrastructure | App process | Memory headroom at peak | ≥ 20% of 512Mi | ~180 MB RSS (prod path) | production path (postgres-js, no PGlite) 130 MB VmHWM after 100 requests → 75% headroom; with in-process PGlite (local only) 436 MB — PGlite is never loaded on Fly. `--max-old-space-size=384` | /proc VmHWM, 2026-11-21 |
+| 10 | Infrastructure | Cold start | Process start → health 200 | ≤ 1 s | ~600 ms | 551 ms production path · 2,987 ms with PGlite WASM init (local dev only); machine stays up, so never on the user path | shell timing, 2026-11-21 |
+| H1 | Back-end | Queue query on Neon (direct, in-region, RLS) | p95 | ≤ 50 ms | ~8 ms | TBD — measure in M9 step 6 | `server-timing` |
+| H2 | Back-end | First query after Neon idle (scale to zero) | cold | ≤ 1 s | ~300–500 ms (Neon: "a few hundred ms") | TBD — measure in M9 step 6 | timing after 6 min idle |
+| H3 | Middleware | `GET /api/entries` hosted | p95 | ≤ 300 ms | ~60 ms | TBD — measure in M9 step 6 | curl loop from iad |
+| H4 | Front-end | `/queue` hosted | LCP | ≤ 2.5 s | ~0.8 s | TBD — measure in M9 step 6 | Playwright PerformanceObserver |
+| H5 | Infrastructure | Fly machine | peak RSS | ≤ 410 MB (80% of 512Mi) | ~180 MB | TBD — measure in M9 step 6 | `fly machine status`, metrics |
+
+**Neon compute budget (Free: 100 CU-h/month).** No database polling: commits run on per-company timers at each undo deadline, so an idle app sends zero queries and Neon scales to zero after 5 min. Hourly pull wakes it ~5 min × 24 × 30 = 60 h × 0.25 CU = 15 CU-h, plus usage ≈ 10 CU-h → ≈ 25 CU-h (25% of the cap). A 1 s polling tick would have kept 0.25 CU awake 730 h = 182 CU-h — over the cap.
 
 Haiku 5.5's minimum cacheable prefix is 512 tokens (claude-api reference, cached 2026-11-03), so the ~1.4K-token prefix caches. Rate-limit headroom: 300 calls/month is far below any provider limit.
 
@@ -897,8 +1031,12 @@ Reliability: every outbound call has a timeout, retry and fallback (interaction 
 | Registry entry → route → CLI → palette | every action | Add to `commands.ts`; `arch:check` fails until the route and screen exist |
 | `judgment` sandwiched by `rule` | both AI steps | Cache/guard before, Zod + validator after; eval pairs before build |
 | Read model in `view.ts` | all GET routes | Rows → shared Zod schemas in `src/lib/types.ts` |
+| Company context (`withOrg`) | every tenant read/write: requests (hooks), jobs (`enqueue`), scheduler (`forEachOrg`) | `getDb()` only inside a company context; `getRootDb()` only for orgs/users/identity; RLS enforces it in the database |
+| Registry role + audit in `handle()` | every API route | One place checks the role and writes `audit_log`; a new command can't skip either |
+| Per-company cache keys | ledger adapters, QuickBooks read cache | Module-level caches key by `currentOrgId()` |
+| Timers, not polling | deferred commits | An idle app sends zero queries (Neon scale-to-zero) |
 
-Proof for components added beyond the brief: `FE.entry.undo` (undo needed an endpoint; extending approve with a flag would have hidden a state transition), `FE.coa.list` (entry editing needs the account list; reused `dimension_values`, no new table), `MW.qbo.connect` (named in the brief's `qbo_tokens` writer).
+Proof for components added beyond the brief: `FE.entry.undo` (undo needed an endpoint; extending approve with a flag would have hidden a state transition), `FE.coa.list` (entry editing needs the account list; reused `dimension_values`, no new table), `MW.qbo.connect` (named in the brief's `qbo_tokens` writer). M8 additions: `identity.ts` (sign-in and token lookups must run before a company context exists, so they can't live in a process handler that assumes one), `audit.ts` (cross-cutting; called only from `handle()`), `orgs.ts` (`MW.org.create` seeds connections and eval cases inside the new company — no existing process creates a company), `processes/members.ts` (members, invites, tokens share one RLS-scoped module instead of three). No new layout shell: `/settings/members` reuses the card + table shell; the 10 new commands use the existing `<noun> <verb>` grammar.
 
 ## 7. Decisions log
 
@@ -912,3 +1050,10 @@ Proof for components added beyond the brief: `FE.entry.undo` (undo needed an end
 | 2026-11-20 | Mercury = `qbo_direct` (write QuickBooks with dedupe + requestid) | Mercury API can't write GL coding (`PATCH` sets only category/note) |
 | 2026-11-20 | Activation needs bank-feed confirmation + bank mapping | Prevents double-booking with Mercury's QuickBooks sync / QBO bank feed |
 | 2026-11-20 | `/api/entries` path kept (no `/api/items` rename) | Churn without user value before M8 |
+| 2026-11-20 | SQLite → Postgres: Neon in production, PGlite in-process for local dev and tests | Multi-user hosting; tests stay dependency-free and run real Postgres (RLS included) |
+| 2026-11-20 | Row-level security per company; app connects as owner and `SET ROLE books_app` per company context | Isolation enforced by the database, not app code; identity lookups need the owner before a company is known |
+| 2026-11-20 | Neon **direct** (non-pooled) endpoint | PgBouncer transaction pooling drops the session settings (`app.org_id`, role) RLS relies on |
+| 2026-11-20 | No database polling; per-company commit timers + advisory-lock leader | Polling would keep Neon awake (≈ 182 CU-h > 100 free); only one machine runs jobs during a deploy overlap |
+| 2026-11-20 | Audit written in `handle()` | Every write path covered in one place; failed writes not audited |
+| 2026-11-20 | Google sign-in, invite-only, Workspace accounts; dev bypass refused in production | Owner's choice (2026-11-20/21); no passwords to manage |
+| 2026-11-20 | One Fly machine (scheduler in-process), Neon Free | Stays under Fly's $5 waiver: ≈ $3.71/month billed $0 |

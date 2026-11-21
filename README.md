@@ -4,7 +4,9 @@
 pnpm i && pnpm db:reset && pnpm db:seed && pnpm dev
 ```
 
-Open http://localhost:5173 (lands on `/queue`); `/system` shows every agent, process and tool with on/off switches. CLI: `pnpm books --help`.
+Open http://localhost:5173 (lands on `/queue`; locally you are `owner@local`, no sign-in). Postgres runs in-process (PGlite, `data/pglite`) — no Docker. `/system` shows every agent, process and tool with on/off switches. CLI: `pnpm books --help`.
+
+Hosted: https://laceluxx-books.fly.dev — Google sign-in, invite-only; owners add people under Settings → Members. CLI against it: `BOOKS_URL=https://laceluxx-books.fly.dev BOOKS_TOKEN=llx_… pnpm books entries list` (token from Settings → Members).
 
 An accounting agent for LaceLuxx. It codes bank and card transactions from connected ledgers (Slash, Mercury) to QuickBooks accounts, explains why, asks the owner when it isn't sure, and learns rules so the same question isn't asked twice. A person approves every coding. Slash items post through Slash's own QuickBooks sync; Mercury items are written to QuickBooks directly, after a duplicate check (Mercury's API can't code for QuickBooks).
 
@@ -25,9 +27,10 @@ Everything runs on **fixtures** by default (synthetic Slash, QuickBooks and mode
 |---|---|
 | `pnpm dev` | App on :5173 |
 | `pnpm books <noun> <verb>` | CLI (needs the app running); `--json` for machine output |
-| `pnpm test` | Unit + process tests (fixtures, in-memory SQLite) |
+| `pnpm test` | Unit + process tests (fixtures, in-memory Postgres via PGlite, running as `books_app` under RLS) |
 | `pnpm test:e2e` | Playwright against a seeded dev server on :5174 |
 | `pnpm evals` | Eval cases, in-process; exit 1 on any failure |
+| `pnpm org:invite <email> [role]` | Bootstrap: invite the first owner of a deployment (accepted on first Google sign-in) |
 | `pnpm arch` / `pnpm arch:check` | Regenerate / verify ARCHITECTURE.md from the registries |
 | `pnpm diagrams:check` | Render every Mermaid diagram with mmdc |
 | `pnpm build && pnpm start` | Production server (`node build`) + `dist/books.mjs` |
