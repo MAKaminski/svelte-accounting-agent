@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && pnpm cli:build",
+    "build": "vite build && pnpm cli:build && pnpm ops:build",
     "preview": "vite preview",
     "start": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -16,6 +16,7 @@
     "org:invite": "tsx scripts/invite.ts",
     "books": "tsx src/cli/books.ts",
     "cli:build": "esbuild src/cli/books.ts --bundle --platform=node --format=esm --outfile=dist/books.mjs",
+    "ops:build": "esbuild scripts/migrate.ts scripts/invite.ts scripts/seed.ts --bundle --platform=node --format=esm --outdir=dist/ops --out-extension:.js=.mjs --alias:\\$lib=./src/lib --packages=external",
     "evals": "tsx scripts/evals.ts",
     "arch": "tsx scripts/gen-arch.ts",
     "arch:check": "tsx scripts/gen-arch.ts --check",
