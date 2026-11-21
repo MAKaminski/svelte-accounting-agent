@@ -24,18 +24,17 @@
 </script>
 <svelte:window onkeydown={onKey} />
 <svelte:head><title>Rules · Accounting Agent</title></svelte:head>
-<h1>Learned rules</h1>
-<p class="muted lead">After 3 approvals of the same merchant to the same account with no conflicts, the agent proposes a Slash mapping. Applying it makes Slash code that merchant automatically — no model call.</p>
+<header class="page-head"><div><h1>Learned rules</h1><p class="sub">After three approvals of the same merchant to the same account, the agent proposes a rule. Once applied, that merchant is coded automatically with no model call.</p></div></header>
 {#if data.error}
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />
 {:else if !data.mappings.length}
-  <div class="card empty"><p class="big">No rules yet.</p><p class="muted">Approve a few entries from the same merchant and a rule will appear here.</p></div>
+  <div class="card empty-state"><span class="ring" aria-hidden="true">↻</span><p class="big">No rules yet.</p><p class="muted">Approve a few entries from the same merchant and a rule will appear here.</p></div>
 {:else}
   <div class="card list">
     {#each [...proposed, ...other] as m (m.id)}
       <div class="row">
         <span class="label">{m.sourceLabel}</span><span>→ {m.accountName}</span><span class="muted">{m.supportCount} approvals</span>
-        <span class="status {m.status}">{m.status}</span>
+        <span><span class="pill" class:accent={m.status === 'proposed'} class:ok={m.status === 'applied'}>{m.status === 'proposed' ? 'Proposed' : m.status === 'applied' ? 'Applied' : 'Dismissed'}</span></span>
         {#if m.status === 'proposed'}<button class="btn sm primary" type="button" onclick={() => (confirming = m)}>Apply in Slash <span class="kbd">r</span></button>{:else}<span></span>{/if}
       </div>
     {/each}
@@ -50,13 +49,9 @@
   </div>
 {/if}
 <style>
-  h1 { margin: 0 0 6px; font-size: 22px; } .lead { margin: 0 0 16px; max-width: 70ch; }
-  .list { padding: 4px 16px; overflow-x: auto; }
-  .row { display: grid; grid-template-columns: minmax(140px, 1.2fr) minmax(160px, 1.2fr) 110px 90px 150px; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line-soft); min-width: 680px; }
+  .list { padding: 4px 20px; overflow-x: auto; }
+  .row { display: grid; grid-template-columns: minmax(140px, 1.2fr) minmax(160px, 1.2fr) 110px 110px 160px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--hair-soft); min-width: 700px; }
+  .row:last-child { border-bottom: 0; }
   .label { font-weight: 500; }
-  .status { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; } .status.applied { color: var(--ok); } .status.dismissed { color: var(--muted); } .status.proposed { color: var(--accent); }
-  .empty { padding: 48px; text-align: center; } .big { font-size: 16px; font-weight: 500; margin: 0 0 6px; } .empty p { margin: 0; }
-  .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / .3); z-index: 40; }
-  .dialog { position: fixed; top: 20vh; left: 50%; transform: translateX(-50%); width: min(480px, calc(100vw - 32px)); padding: 22px; z-index: 41; display: flex; flex-direction: column; gap: 12px; }
-  .dialog h2 { margin: 0; font-size: 17px; } .dialog p { margin: 0; } .acts { display: flex; gap: 8px; }
+  .acts { display: flex; gap: 8px; margin-top: 4px; }
 </style>

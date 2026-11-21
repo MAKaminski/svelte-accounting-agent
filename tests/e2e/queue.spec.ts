@@ -59,3 +59,17 @@ test('CLI-equivalent API: approve without --yes is refused (exit 1 class)', asyn
   expect(r.status()).toBe(400);
   expect((await r.json()).error.code).toBe('confirm_required');
 });
+
+test('bulk approve: routine items are approved together after a confirm, and one undo brings them all back', async ({ page, request }) => {
+  await page.goto('/queue', { waitUntil: 'networkidle' }); // hydrated before clicking
+  const before = (await (await request.get('/api/entries?state=recommended')).json()).length;
+  const bulk = page.getByRole('button', { name: /Approve \d+ routine/ });
+  const n = Number((await bulk.textContent())!.match(/\d+/)![0]);
+  expect(n).toBeGreaterThan(1);
+  await bulk.click();
+  await page.getByRole('button', { name: `Confirm: approve ${n}` }).click();
+  await expect(page.getByText(`Approved ${n} routine transactions`)).toBeVisible();
+  expect((await (await request.get('/api/entries?state=approved')).json()).length).toBeGreaterThanOrEqual(n);
+  await page.locator('.toast button.undo').click();
+  await expect.poll(async () => (await (await request.get('/api/entries?state=recommended')).json()).length).toBe(before);
+});

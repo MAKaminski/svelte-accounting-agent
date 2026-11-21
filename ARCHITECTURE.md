@@ -143,7 +143,8 @@ Brief: `docs/design/brief.md`. One stylesheet, `src/app.css`, holds every token;
 | Type | Inter Variable (interface) and JetBrains Mono (amounts, ids), self-hosted; tabular numerals for money |
 | Themes | Dark by default; light via `data-theme="light"` (toggle in the nav, remembered in `localStorage`) |
 | Motion | 120–180 ms, only in response to an action; off under `prefers-reduced-motion` |
-| Shared classes | `.btn` (+ `primary`, `ghost`, `danger`, `sm`), `.chip`, `.card`, `.badge`, `.meter`, `.avatar`, `.kbd`, `.skeleton` — a screen adds layout, not new control styles |
+| Shared classes | `.btn` (+ `primary`, `ghost`, `danger`, `sm`), `.chip`, `.card`, `.badge`, `.pill`, `.meter`, `.avatar`, `.kbd`, `.skeleton`, `.page-head`, `.section-title`, `.stat-tile`, `.empty-state`, `.dialog` — a screen adds layout, not new control styles |
+| Names | `src/lib/names.ts` gives every process and tool a plain-language name ("Recommend coding"); the technical id stays the key and is shown beside it |
 
 ### Screen flow
 

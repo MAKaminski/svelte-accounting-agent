@@ -12,6 +12,7 @@ const local = '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome';
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch(existsSync(local) ? { executablePath: local } : {});
+await fetch(`${BASE}/api/evals/run`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(() => undefined); // so /evals shows a run
 const entries = await (await fetch(`${BASE}/api/entries`)).json();
 const split = entries.find((e) => (e.recommendation?.lines?.length ?? 0) > 1) ?? entries[0];
 const screens = [

@@ -66,7 +66,7 @@ await record('ask-owner', async (page) => {
 await record('control-plane', async (page) => {
   await page.goto(`${BASE}/system`, { waitUntil: 'networkidle' });
   await wait(page, 1200);
-  await page.locator('.svelte-flow__node', { hasText: 'AI.entry.recommend' }).click();
+  await page.locator('.svelte-flow__node', { hasText: 'Recommend coding' }).click();
   await wait(page, 2000);
   await page.goto(`${BASE}/system/agents`, { waitUntil: 'networkidle' });
   await wait(page, 1800);

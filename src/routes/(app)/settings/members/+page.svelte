@@ -43,9 +43,8 @@
 </script>
 
 <svelte:head><title>Members · Accounting Agent</title></svelte:head>
-<header class="head">
-  <h1>Members</h1>
-  <span class="muted">{page.data.me?.orgName} · {people} member{people === 1 ? '' : 's'}{pending ? ` · ${pending} invite${pending === 1 ? '' : 's'} pending` : ''}</span>
+<header class="page-head">
+  <div><h1>Members</h1><p class="sub">{page.data.me?.orgName}: {people} member{people === 1 ? '' : 's'}{pending ? `, ${pending} invite${pending === 1 ? '' : 's'} pending` : ''}. Owners manage people and tokens; reviewers decide on entries; viewers read.</p></div>
 </header>
 
 {#if data.error}
@@ -57,10 +56,10 @@
         <div class="row th"><span>Person</span><span>Role</span><span>Last seen</span><span class="r">Actions</span></div>
         {#each data.members as m (m.id)}
           <div class="row">
-            <div class="who">
+            <div class="who"><span class="avatar" aria-hidden="true">{(m.name ?? m.email).slice(0, 2).toUpperCase()}</span><div class="whot">
               <strong>{m.kind === 'invite' ? 'Invite pending' : (m.name ?? m.email)}</strong>
               <span class="muted small">{m.email}</span>
-            </div>
+            </div></div>
             <select aria-label="Role for {m.email}" value={m.role} disabled={!!busy || m.you} onchange={(ev) => changeRole(m, ev.currentTarget.value)}>
               <option value="owner">Owner</option><option value="reviewer">Reviewer</option><option value="viewer">Viewer</option>
             </select>
@@ -130,18 +129,15 @@
 {/if}
 
 <style>
-  .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
-  .head h1 { margin: 0; }
-  .layout { display: flex; gap: 16px; align-items: flex-start; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
   .side { width: 340px; flex-shrink: 0; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
   .pad { padding: 16px; }
   .col { display: flex; flex-direction: column; gap: 10px; }
   h2 { margin: 0; font-size: 15px; }
-  .row { display: grid; grid-template-columns: 2.2fr 1fr 1.2fr 1fr; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 2.2fr 1fr 1.2fr 1fr; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--hair-soft); }
   .th { font-size: 12px; color: var(--muted); font-weight: 500; background: var(--bg); padding: 10px 16px; }
-  .who { display: flex; flex-direction: column; min-width: 0; }
+  .who { display: flex; align-items: center; gap: 12px; min-width: 0; } .whot { display: flex; flex-direction: column; min-width: 0; }
   .who strong { font-weight: 500; }
   .r { text-align: right; }
   .small { font-size: 12px; }

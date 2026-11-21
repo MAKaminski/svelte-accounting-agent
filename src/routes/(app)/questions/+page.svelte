@@ -21,12 +21,12 @@
   const useGuess = (id: string, guess: string | null) => { if (guess) answers[id] = `Yes — ${guess}`; };
 </script>
 <svelte:head><title>Questions · Accounting Agent</title></svelte:head>
-<h1>Questions for the owner</h1>
+<header class="page-head"><div><h1>Questions for the owner</h1><p class="sub">When the agent can't tell, it asks one plain question. Your answer codes the entry and is kept as evidence.</p></div></header>
 {#if data.error}
   <ErrorState message={data.error.message} source={data.error.source} onretry={() => invalidateAll()} />
 {:else}
   {#if !open.length}
-    <div class="card empty"><p class="big">No open questions.</p><p class="muted">{answered.length} answered so far. Questions appear when the agent is not sure.</p></div>
+    <div class="card empty-state"><span class="ring ok" aria-hidden="true">✓</span><p class="big">No open questions.</p><p class="muted">{answered.length} answered so far. Questions appear when the agent is not sure.</p></div>
   {/if}
   {#each open as q (q.id)}
     <form class="card q" onsubmit={(e) => { e.preventDefault(); answer(q.id, e.currentTarget); }}>
@@ -41,18 +41,16 @@
     </form>
   {/each}
   {#if answered.length}
-    <h2>Answered</h2>
+    <h2 class="section-title">Answered</h2>
     <div class="card list">
       {#each answered as q}<div class="done"><a href="/entry/{q.entryId}">{q.merchant}</a><span class="muted">{q.text}</span><span>→ {q.answer}</span></div>{/each}
     </div>
   {/if}
 {/if}
 <style>
-  h1 { margin: 0 0 16px; font-size: 22px; } h2 { font-size: 15px; margin: 24px 0 8px; }
-  .q { padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
-  .meta { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; } .meta a { font-weight: 500; }
-  .text { margin: 0; font-size: 15px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; } .row input { flex: 1 1 260px; height: 36px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 10px; }
-  .empty { padding: 48px; text-align: center; } .big { font-size: 16px; font-weight: 500; margin: 0 0 6px; } .empty p { margin: 0; }
-  .list { padding: 6px 16px; } .done { display: grid; grid-template-columns: 160px 1fr 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .q { padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; border-left: 2px solid var(--warn); }
+  .meta { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; font-size: 13px; } .meta a { font-weight: 500; color: var(--text); }
+  .text { margin: 0; font-size: 16px; line-height: 1.5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; } .row input { flex: 1 1 260px; height: 36px; padding: 0 12px; }
+  .list { padding: 6px 20px; } .done { display: grid; grid-template-columns: 180px 1fr 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hair-soft); font-size: 13px; } .done:last-child { border-bottom: 0; }
 </style>

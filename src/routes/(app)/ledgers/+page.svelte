@@ -47,10 +47,9 @@
 </script>
 
 <svelte:head><title>Ledgers · Accounting Agent</title></svelte:head>
-<header>
-  <h1>Ledgers</h1>
-  <span class="muted">{data.ledgers.length} connection{data.ledgers.length === 1 ? '' : 's'} · {active} active</span>
-  <button class="btn dark" type="button" onclick={() => (adding = !adding)}>{adding ? 'Close' : 'Add connection'}</button>
+<header class="page-head">
+  <div><h1>Ledgers</h1><p class="sub">The bank and card accounts the agent pulls from, and how each one reaches QuickBooks. {data.ledgers.length} connection{data.ledgers.length === 1 ? '' : 's'}, {active} active.</p></div>
+  <div class="actions"><button class="btn primary" type="button" onclick={() => (adding = !adding)}>{adding ? 'Close' : 'Add connection'}</button></div>
 </header>
 
 {#if data.error}
@@ -59,14 +58,14 @@
   <div class="split">
     <section class="list" aria-label="Connections">
       {#if !data.ledgers.length}
-        <div class="card empty"><p class="big">No ledgers connected.</p><p class="muted">Add Slash or Mercury to start pulling transactions.</p></div>
+        <div class="card empty-state"><span class="ring" aria-hidden="true">+</span><p class="big">No ledgers connected.</p><p class="muted">Add Slash or Mercury to start pulling transactions.</p></div>
       {/if}
       {#each data.ledgers as l (l.id)}
         {@const h = health[l.id]}
         <article class="card conn" class:bad={!!l.lastError || h?.ok === false}>
           <div class="top">
-            <span class="kind {l.kind}">{l.kind.toUpperCase()}</span><strong>{l.name}</strong><span class="muted small">{l.mode} · {l.id}</span>
-            <span class="status {l.status}">{l.status === 'active' ? 'Active' : 'Inactive'}</span>
+            <span class="avatar" aria-hidden="true">{l.name.slice(0, 2).toUpperCase()}</span><div class="nm"><strong>{l.name}</strong><span class="muted small">{l.kind} · {l.mode} data · <span class="mono">{l.id}</span></span></div>
+            <span class="status"><span class="pill" class:ok={l.status === 'active'}>{l.status === 'active' ? 'Active' : 'Inactive'}</span></span>
           </div>
           <div class="facts">
             <div><span class="lbl">Writes to</span>{direct(l) ? 'QuickBooks directly (dedupe first)' : `${l.name} → its QuickBooks sync`}</div>
@@ -83,7 +82,7 @@
             <button class="btn sm" type="button" onclick={() => test(l)} disabled={!!busy}>{busy === `test:${l.id}` ? 'Testing…' : 'Test'}</button>
             <button class="btn sm" class:primary={l.status !== 'active'} type="button" onclick={() => toggle(l)} disabled={!!busy || (l.status !== 'active' && l.blockers.length > 0)}>{l.status === 'active' ? 'Deactivate' : 'Activate'}</button>
             {#if direct(l)}<button class="btn sm" type="button" onclick={() => openConfig(l)} disabled={!!busy}>Configure</button>{/if}
-            <a class="small" href="/queue?connection={l.id}">View queue →</a>
+            <a class="btn sm ghost" href="/queue?connection={l.id}">View its queue</a>
           </div>
         </article>
       {/each}
@@ -126,29 +125,27 @@
 {/if}
 
 <style>
-  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-  h1 { margin: 0; font-size: 22px; } header .btn { margin-left: auto; }
-  .split { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-  .list { flex: 999 1 560px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .conn { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .split { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .list { flex: 999 1 560px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .conn { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; transition: border-color var(--t-fast) var(--ease); }
+  .conn:hover { border-color: var(--hair-strong); }
   .conn.bad { border-color: var(--danger-line); }
-  .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .kind { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--info) 10%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); }
-  .kind.mercury { background: color-mix(in srgb, var(--violet) 10%, transparent); color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent); }
-  .status { margin-left: auto; font-size: 13px; } .status.active { color: var(--ok); } .status.inactive { color: var(--muted); }
-  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 13px; }
-  .lbl { display: block; color: var(--muted); font-size: 12px; }
-  .err { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--danger-soft); color: var(--danger); font-size: 13px; }
-  .ok { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--ok-soft); color: var(--ok); font-size: 13px; }
-  .blockers { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--warn-soft); color: var(--warn-ink); }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .top .avatar { width: 36px; height: 36px; border-radius: 10px; font-size: 12px; }
+  .nm { display: flex; flex-direction: column; } .nm strong { font-size: 15px; font-weight: 600; }
+  .status { margin-left: auto; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; font-size: 13.5px; padding: 14px 0; border-top: 1px solid var(--hair-soft); border-bottom: 1px solid var(--hair-soft); }
+  .lbl { display: block; color: var(--text-muted); font-size: 12.5px; margin-bottom: 2px; }
+  .err { margin: 0; padding: 10px 12px; border-radius: var(--r-1); background: var(--danger-soft); border: 1px solid var(--danger-line); color: var(--danger); font-size: 13px; }
+  .ok { margin: 0; padding: 10px 12px; border-radius: var(--r-1); background: var(--ok-soft); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); color: var(--ok); font-size: 13px; }
+  .blockers { font-size: 13px; padding: 10px 12px; border-radius: var(--r-1); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); color: var(--warn); }
   .blockers ul { margin: 4px 0 0; padding-left: 18px; }
   .acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .panel { flex: 1 1 320px; max-width: 400px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-  h2 { margin: 0; font-size: 15px; }
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-  label select, label input:not([type='checkbox']) { height: 34px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 8px; font-size: 14px; color: var(--ink); }
-  .check { flex-direction: row; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); }
-  .warn { padding: 10px 12px; border-radius: 6px; background: var(--warn-soft); border: 1px solid var(--warn); color: var(--warn-ink); font-size: 13px; line-height: 1.45; }
-  .empty { padding: 40px; text-align: center; } .big { font-size: 16px; font-weight: 500; margin: 0 0 6px; } .empty p { margin: 0; }
-  .small { font-size: 12px; }
+  .panel { flex: 1 1 320px; max-width: 400px; padding: 22px; display: flex; flex-direction: column; gap: 14px; background: var(--raised); border-color: var(--hair-strong); box-shadow: var(--shadow-2); position: sticky; top: 24px; animation: slidein var(--t) var(--ease); }
+  @keyframes slidein { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+  label select, label input:not([type='checkbox']) { height: 36px; padding: 0 10px; font-size: 14px; }
+  .check { flex-direction: row; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); }
+  .warn { padding: 12px 14px; border-radius: var(--r-1); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); color: var(--warn); font-size: 13px; line-height: 1.45; }
+  .small { font-size: 12.5px; }
 </style>

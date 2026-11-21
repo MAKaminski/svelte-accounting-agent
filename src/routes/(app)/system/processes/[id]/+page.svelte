@@ -3,17 +3,18 @@
   import ErrorState from '$lib/components/ErrorState.svelte';
   import ComponentToggle from '$lib/components/ComponentToggle.svelte';
   import StateGraph from '$lib/components/StateGraph.svelte';
+  import { friendly } from '$lib/names';
   let { data } = $props();
 </script>
 
-<svelte:head><title>{data.c?.id ?? 'Component'} · System · Accounting Agent</title></svelte:head>
-<a class="back" href="/system?c={data.c?.id ?? ''}">← Graph</a>
+<svelte:head><title>{data.c ? friendly(data.c.id) : 'Component'} · System · Accounting Agent</title></svelte:head>
+<a class="back" href="/system?c={data.c?.id ?? ''}">Back to the map</a>
 {#if data.error || !data.c}
   <ErrorState message={data.error?.message ?? 'Not found'} source={data.error?.source} onretry={() => invalidateAll()} />
 {:else}
   {@const c = data.c}
   <div class="title">
-    <h2><code>{c.id}</code></h2><span class="kind {c.kind}">{c.kind.toUpperCase()}</span><span class="st {c.status}">{c.status}</span>
+    <div><h2>{friendly(c.id)}</h2><code>{c.id}</code></div><span class="kind {c.kind}">{c.kind.toUpperCase()}</span><span class="pill" class:ok={c.status === 'active'} class:bad={c.status === 'degraded'}>{c.status}</span>
     <div class="push"><ComponentToggle {c} /></div>
   </div>
   {#if c.whenOff}<p class="muted">When off: {c.whenOff}</p>{:else}<p class="muted">Required: this component cannot be switched off.</p>{/if}
@@ -61,8 +62,9 @@
 {/if}
 
 <style>
-  .back { font-size: 13px; text-decoration: none; }
-  .title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .back { font-size: 13px; text-decoration: none; color: var(--text-muted); }
+  .title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .title code { color: var(--text-muted); font-size: 12px; }
   h2 { margin: 0; font-size: 18px; } code { font-family: var(--mono); }
   .push { margin-left: auto; }
   .kind { padding: 2px 8px; border-radius: 10px; background: var(--line-soft); font-size: 11px; font-weight: 600; }

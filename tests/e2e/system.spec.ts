@@ -5,10 +5,10 @@ test.describe.configure({ mode: 'serial' });
 test('graph renders every lane and the selected node’s panel', async ({ page }) => {
   await page.goto('/system', { waitUntil: 'networkidle' });
   await expect(page.locator('.svelte-flow__node.node')).not.toHaveCount(0);
-  for (const lane of ['Front-end', 'Middleware', 'AI', 'Back-end (tables)', 'Tools', 'External']) {
+  for (const lane of ['You do', 'Rules (no model)', 'Agents (model)', 'Data', 'Tools', 'Outside']) {
     await expect(page.locator('.lane-label', { hasText: lane })).toBeVisible();
   }
-  await page.locator('.svelte-flow__node', { hasText: 'AI.entry.recommend' }).click();
+  await page.locator('.svelte-flow__node', { hasText: 'Recommend coding' }).click();
   await expect(page.getByLabel('Selected component').getByText('AGENT')).toBeVisible();
 });
 
@@ -17,7 +17,7 @@ test('switching off the recommend agent → manual mode, no model calls; back on
   const panel = page.getByLabel('Selected component');
   await panel.getByRole('switch').click();
   await panel.getByRole('button', { name: 'Switch off' }).click();
-  await expect(page.locator('.svelte-flow__node.s-off', { hasText: 'AI.entry.recommend' })).toBeVisible();
+  await expect(page.locator('.svelte-flow__node.s-off', { hasText: 'Recommend coding' })).toBeVisible();
 
   const comp = await (await request.get('/api/system/components/AI.entry.recommend')).json();
   expect(comp).toMatchObject({ enabled: false, status: 'off' });
