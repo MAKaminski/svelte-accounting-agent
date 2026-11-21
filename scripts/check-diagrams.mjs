@@ -1,12 +1,22 @@
 // pnpm diagrams:check — render every ```mermaid block in ARCHITECTURE.md and README.md with mmdc.
 // A diagram that doesn't render is a broken deliverable.
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+// Browser: PUPPETEER_EXECUTABLE_PATH if set, else Playwright's Chromium (CI installs it), else the container default.
+async function findChrome() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  try {
+    const p = (await import('@playwright/test')).chromium.executablePath();
+    if (p && existsSync(p)) return p;
+  } catch { /* not installed */ }
+  return '/opt/pw-browsers/chromium';
+}
+
 const dir = mkdtempSync(join(tmpdir(), 'mmdc-'));
-const chrome = process.env.PUPPETEER_EXECUTABLE_PATH ?? '/opt/pw-browsers/chromium';
+const chrome = await findChrome();
 const pcfg = join(dir, 'puppeteer.json');
 writeFileSync(pcfg, JSON.stringify({ executablePath: chrome, args: ['--no-sandbox', '--headless'] }));
 mkdirSync(join(dir, 'out'), { recursive: true });

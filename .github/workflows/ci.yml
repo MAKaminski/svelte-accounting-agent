@@ -23,6 +23,6 @@ jobs:
       - run: pnpm arch:check
       - run: pnpm exec tsx scripts/gen-rls.ts --check
       - run: pnpm exec playwright install --with-deps chromium
-      - run: PUPPETEER_EXECUTABLE_PATH=$(node -e "console.log(require('playwright').chromium.executablePath())") pnpm diagrams:check
+      - run: pnpm diagrams:check
       - run: pnpm test:e2e
       - run: pnpm build
