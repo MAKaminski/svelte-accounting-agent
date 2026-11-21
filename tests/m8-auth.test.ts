@@ -28,10 +28,11 @@ describe('M8 · sign-in, roles, tokens', () => {
   let a: string;
   beforeEach(async () => { a = (await setup()).orgId; });
 
-  it('every registry command declares a role; no write is open to viewers (except switching company)', () => {
+  it('every registry command declares a role; no write is open to viewers (except switching company); only company.create is open to company-less users', () => {
     for (const c of commands) {
-      expect(['viewer', 'reviewer', 'owner']).toContain(c.role);
+      expect(['user', 'viewer', 'reviewer', 'owner']).toContain(c.role);
       if (c.method === 'POST' && c.name !== 'org.select') expect(c.role).not.toBe('viewer');
+      if (c.role === 'user') expect(c.name).toBe('company.create');
     }
     expect(commands.find((c) => c.name === 'entry.approve')!.role).toBe('reviewer');
     expect(commands.find((c) => c.name === 'component.disable')!.role).toBe('owner');
@@ -39,21 +40,22 @@ describe('M8 · sign-in, roles, tokens', () => {
     expect(atLeast('viewer', 'reviewer')).toBe(false);
   });
 
-  it('a Google account with no membership or invite is refused', async () => {
-    expect(await signInAs('stranger@gmail.com')).toBe(false);
+  it('invite-only mode: a Google account with no membership or invite is refused', async () => {
+    process.env.SIGNUP_MODE = 'invite';
+    try { expect(await signInAs('stranger@gmail.com')).toBe(false); } finally { delete process.env.SIGNUP_MODE; }
     expect(await signIn({ email: null })).toBe(false);
     expect(await signIn({ email: 'x@y.com', emailVerified: false })).toBe(false);
   });
 
   it('an invite is accepted on first sign-in → member with the invited role', async () => {
-    const inv = await inviteMember({ email: 'Dana@LaceLuxx.com', role: 'reviewer' });
-    expect(inv).toMatchObject({ kind: 'invite', email: 'dana@laceluxx.com', role: 'reviewer' });
-    expect(await signInAs('dana@laceluxx.com', 'Dana R.')).toBe(true);
-    const id = (await whois('dana@laceluxx.com'))!;
+    const inv = await inviteMember({ email: 'Dana@Example.com', role: 'reviewer' });
+    expect(inv).toMatchObject({ kind: 'invite', email: 'dana@example.com', role: 'reviewer' });
+    expect(await signInAs('dana@example.com', 'Dana R.')).toBe(true);
+    const id = (await whois('dana@example.com'))!;
     expect(id.memberships).toEqual([{ orgId: a, orgName: 'Test org', role: 'reviewer' }]);
     const ms = await listMembers();
-    expect(ms.find((m) => m.email === 'dana@laceluxx.com')).toMatchObject({ kind: 'member', name: 'Dana R.' });
-    await expect(inviteMember({ email: 'dana@laceluxx.com', role: 'viewer' })).rejects.toThrow(/already/);
+    expect(ms.find((m) => m.email === 'dana@example.com')).toMatchObject({ kind: 'member', name: 'Dana R.' });
+    await expect(inviteMember({ email: 'dana@example.com', role: 'viewer' })).rejects.toThrow(/already/);
   });
 
   it('inviting someone who already uses the app adds them straight away', async () => {
@@ -82,41 +84,41 @@ describe('M8 · sign-in, roles, tokens', () => {
   });
 
   it("the last owner can't be demoted or removed", async () => {
-    await inviteMember({ email: 'boss@laceluxx.com', role: 'owner' });
-    await signInAs('boss@laceluxx.com');
-    const boss = (await listMembers()).find((m) => m.email === 'boss@laceluxx.com')!;
+    await inviteMember({ email: 'boss@example.com', role: 'owner' });
+    await signInAs('boss@example.com');
+    const boss = (await listMembers()).find((m) => m.email === 'boss@example.com')!;
     await expect(setMemberRole(boss.id, 'viewer')).rejects.toThrow(/last owner/);
     await expect(removeMember(boss.id, true)).rejects.toThrow(/last owner/);
     await expect(removeMember(boss.id, false)).rejects.toThrow(/--yes/);
-    await inviteMember({ email: 'second@laceluxx.com', role: 'owner' });
-    await signInAs('second@laceluxx.com');
+    await inviteMember({ email: 'second@example.com', role: 'owner' });
+    await signInAs('second@example.com');
     expect((await setMemberRole(boss.id, 'viewer')).role).toBe('viewer');
   });
 
   it('a token works for its company, then 401s after revoke; removal kills a member’s tokens', async () => {
-    await inviteMember({ email: 'cli@laceluxx.com', role: 'reviewer' });
-    await signInAs('cli@laceluxx.com');
-    const me = (await whois('cli@laceluxx.com'))! as Identity;
+    await inviteMember({ email: 'cli@example.com', role: 'reviewer' });
+    await signInAs('cli@example.com');
+    const me = (await whois('cli@example.com'))! as Identity;
     const t = await createToken('laptop CLI', me);
     expect(t.token).toMatch(/^llx_/);
     const stored = await getDb().select().from(schema.apiTokens);
     expect(JSON.stringify(stored)).not.toContain(t.token); // only the hash is stored
     const viaToken = (await asOwner(() => identityForToken(t.token)))!;
-    expect(viaToken).toMatchObject({ email: 'cli@laceluxx.com', token: { id: t.id, orgId: a } });
+    expect(viaToken).toMatchObject({ email: 'cli@example.com', token: { id: t.id, orgId: a } });
     expect(await asOwner(() => identityForToken('llx_nope'))).toBeNull();
     await revokeToken(t.id, true);
     expect(await asOwner(() => identityForToken(t.token))).toBeNull();
 
     const t2 = await createToken('second', me);
-    const mem = (await listMembers()).find((m) => m.email === 'cli@laceluxx.com')!;
+    const mem = (await listMembers()).find((m) => m.email === 'cli@example.com')!;
     await removeMember(mem.id, true);
     expect(await asOwner(() => identityForToken(t2.token))).toBeNull();
   });
 
   it('a token cannot mint tokens or switch company', async () => {
-    await inviteMember({ email: 'tok@laceluxx.com', role: 'owner' });
-    await signInAs('tok@laceluxx.com');
-    const me = (await whois('tok@laceluxx.com'))!;
+    await inviteMember({ email: 'tok@example.com', role: 'owner' });
+    await signInAs('tok@example.com');
+    const me = (await whois('tok@example.com'))!;
     const t = await createToken('ci', me);
     const viaToken = (await asOwner(() => identityForToken(t.token)))!;
     await expect(createToken('another', viaToken)).rejects.toThrow(/web app/);

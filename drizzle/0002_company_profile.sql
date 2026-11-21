@@ -1,0 +1,1 @@
+ALTER TABLE "orgs" ADD COLUMN "profile_json" text DEFAULT '{}' NOT NULL;

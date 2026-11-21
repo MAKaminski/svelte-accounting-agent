@@ -123,12 +123,12 @@ for (const c of commands) {
   if (`${c.noun}.${c.verb}` !== c.name) problems.push(`command ${c.name}: name must be noun.verb`);
   if (!/^[a-z]+$/.test(c.noun) || !/^[a-z]+$/.test(c.verb)) problems.push(`command ${c.name}: off-grammar noun/verb`);
   if (!procIds.has(c.process)) problems.push(`command ${c.name}: process ${c.process} not in processes.yaml`);
-  if (!['viewer', 'reviewer', 'owner'].includes(c.role)) problems.push(`command ${c.name}: missing role (viewer | reviewer | owner)`);
-  if (c.method === 'POST' && c.role === 'viewer' && c.name !== 'org.select') problems.push(`command ${c.name}: a write can't be open to viewers`);
+  if (!['user', 'viewer', 'reviewer', 'owner'].includes(c.role)) problems.push(`command ${c.name}: missing role (user | viewer | reviewer | owner)`);
+  if (c.method === 'POST' && (c.role === 'viewer' || (c.role === 'user' && c.name !== 'company.create')) && c.name !== 'org.select') problems.push(`command ${c.name}: a write can't be open to viewers`);
   const file = 'src/routes' + c.path.replace(/:(\w+)/g, '[$1]') + '/+server.ts';
   if (!existsSync(file)) problems.push(`command ${c.name}: no route file ${file}`);
   else if (!new RegExp(`export const ${c.method}\\b`).test(readFileSync(file, 'utf8'))) problems.push(`command ${c.name}: ${file} does not export ${c.method}`);
-  if (c.screen && !existsSync(`src/routes/(app)${c.screen}/+page.svelte`)) problems.push(`command ${c.name}: screen ${c.screen} has no page (mockup)`);
+  if (c.screen && !existsSync(`src/routes/(app)${c.screen}/+page.svelte`) && !existsSync(`src/routes${c.screen}/+page.svelte`)) problems.push(`command ${c.name}: screen ${c.screen} has no page (mockup)`);
 }
 
 const traced = new Set(reg.traces.flatMap((t) => t.processes));

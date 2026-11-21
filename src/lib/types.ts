@@ -168,6 +168,8 @@ export const SettingsSchema = z.object({
   legalEntityPresent: z.boolean(),
   qboMode: z.string(),
   qboConnected: z.boolean(),
+  qboOAuth: z.boolean(),
+  signupOpen: z.boolean(),
   modelMode: z.string(),
   modelWorker: z.string(),
   modelIntegrator: z.string(),
@@ -241,8 +243,8 @@ export const CapabilitiesSchema = z.object({
 export const LedgerConnectionSchema = z.object({
   id: z.string(), kind: z.string(), name: z.string(), mode: z.enum(['fixture', 'live']), status: z.enum(['active', 'inactive']),
   capabilities: CapabilitiesSchema,
-  config: z.object({ accountIds: z.array(z.string()).optional(), qboBankAccountIdByAccount: z.record(z.string(), z.string()).optional() }),
-  hasCredentials: z.boolean(), bankFeedConfirmedBy: z.string().nullable(), bankFeedConfirmedAt: z.string().nullable(),
+  config: z.object({ accountIds: z.array(z.string()).optional(), qboBankAccountIdByAccount: z.record(z.string(), z.string()).optional(), legalEntityId: z.string().optional() }),
+  hasCredentials: z.boolean(), keyHelp: z.object({ label: z.string(), where: z.string(), url: z.string(), note: z.string() }).nullable(), bankFeedConfirmedBy: z.string().nullable(), bankFeedConfirmedAt: z.string().nullable(),
   lastPullAt: z.string().nullable(), lastError: z.string().nullable(), blockers: z.array(z.string()),
   inReview: z.number(), total: z.number(), createdAt: z.string()
 });
@@ -267,6 +269,12 @@ export const ApiTokenSchema = z.object({
 export type ApiToken = z.infer<typeof ApiTokenSchema>;
 /** Returned once by token.create; the raw token is never stored or shown again. */
 export const NewTokenSchema = ApiTokenSchema.extend({ token: z.string() });
+export const SetupStepSchema = z.object({ id: z.string(), label: z.string(), done: z.boolean(), href: z.string() });
+export const CompanySchema = z.object({
+  id: z.string(), name: z.string(), business: z.string(), codingRules: z.string(), sampleData: z.boolean(),
+  setup: z.array(SetupStepSchema)
+});
+export type Company = z.infer<typeof CompanySchema>;
 export const OrgSchema = z.object({ id: z.string(), name: z.string(), role: RoleSchema, current: z.boolean() });
 export type Org = z.infer<typeof OrgSchema>;
 export const WhoamiSchema = z.object({

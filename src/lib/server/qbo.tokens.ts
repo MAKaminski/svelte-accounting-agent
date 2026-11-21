@@ -33,8 +33,9 @@ export const qboTokenStore: QboTokenStore = {
   async save(t) {
     const db = getDb();
     const values = { realmId: t.realmId, accessTokenEnc: encrypt(t.accessToken), refreshTokenEnc: encrypt(t.refreshToken), expiresAt: t.expiresAt, updatedAt: nowIso() };
-    const existing = await db.select().from(schema.qboTokens).where(eq(schema.qboTokens.realmId, t.realmId)).get();
-    if (existing) await db.update(schema.qboTokens).set(values).where(eq(schema.qboTokens.realmId, t.realmId)).run();
+    // One QuickBooks company per company (org_id is the key); reconnecting — even to another realm — replaces it.
+    const existing = await db.select().from(schema.qboTokens).limit(1).get();
+    if (existing) await db.update(schema.qboTokens).set(values).where(eq(schema.qboTokens.orgId, existing.orgId)).run();
     else await db.insert(schema.qboTokens).values(values).run();
   }
 };

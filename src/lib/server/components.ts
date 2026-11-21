@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
+import { PROMPT_VERSION as RECOMMEND_PROMPT_VERSION } from './prompts/recommend.v2';
 import { eq, gte } from 'drizzle-orm';
 import { getDb, schema } from './db';
 import { AppError, nowIso } from './util';
@@ -112,7 +113,7 @@ export async function listComponents(kind?: Component['kind']): Promise<Componen
     return {
       id, kind: k, layer: layerOf(id, k), label: id, summary: p.steps.map((s) => s.does).join(' → '),
       toggle: p.toggle, whenOff: p.whenOff ?? null, enabled, status: status(enabled, m),
-      tier: judgment?.tier ?? null, promptVersion: k === 'agent' ? (id === 'AI.entry.recommend' ? 'recommend.v1' : 'identify.v1') : null,
+      tier: judgment?.tier ?? null, promptVersion: k === 'agent' ? (id === 'AI.entry.recommend' ? RECOMMEND_PROMPT_VERSION : 'identify.v1') : null,
       target: null, usedBy: [], writes: p.writes,
       evalPassRate: evalRes.length ? evalRes.filter((c) => c.pass).length / evalRes.length : null,
       calls7d: m.calls, failures7d: m.failures, p95Ms: m.p95Ms, costUsd7d: m.costUsd, cacheReadShare: m.cacheReadShare,

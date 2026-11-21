@@ -18,6 +18,10 @@ test('a new Mercury connection cannot be activated until the bank feed is confir
   await page.getByRole('button', { name: 'Add connection' }).click();
   const panel = page.getByLabel('Add connection');
   await panel.getByLabel('Name').fill('Mercury Savings');
+  // Live is the default: the key field links to where the key lives, and Add waits for a key.
+  await expect(panel.getByRole('link', { name: /Settings → Tokens/ })).toHaveAttribute('href', 'https://app.mercury.com/settings/tokens');
+  await expect(panel.getByRole('button', { name: 'Add connection' })).toBeDisabled();
+  await panel.getByLabel('Data').selectOption('fixture');
   await expect(panel.getByText(/booked twice/)).toBeVisible();
   await panel.getByRole('button', { name: 'Add connection' }).click();
 
@@ -29,7 +33,7 @@ test('a new Mercury connection cannot be activated until the bank feed is confir
 
   await config.getByLabel('QuickBooks bank account for Mercury Checking').selectOption('10');
   await config.getByRole('checkbox').check();
-  await config.getByRole('button', { name: 'Save' }).click();
+  await config.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card.getByText('Before activating:')).toBeHidden();
   await card.getByRole('button', { name: 'Activate' }).click();
   await expect(card.getByText('Active', { exact: true })).toBeVisible();

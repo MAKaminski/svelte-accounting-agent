@@ -1,8 +1,9 @@
 # Fly.io: one always-on machine (scheduler runs in-process), Neon for the database.
 # Cost: shared-cpu-1x 512MB ≈ $3.69/month + egress < $0.05 → under the $5 personal-org waiver.
 # Secrets (set with `fly secrets`, never here): DATABASE_URL (Neon owner, direct endpoint), TOKEN_ENC_KEY,
-# AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, later ANTHROPIC_API_KEY.
-app = "laceluxx-books"
+# AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, QBO_CLIENT_ID, QBO_CLIENT_SECRET, ANTHROPIC_API_KEY.
+# Users' Slash/Mercury keys are entered in the app per company, not here.
+app = "svelte-accounting-agent"
 primary_region = "iad"
 
 [build]
@@ -12,9 +13,13 @@ primary_region = "iad"
   APP_DB_ROLE = "books_app"
   MODEL_MODE = "fixture"
   SLASH_MODE = "fixture"
-  QBO_MODE = "fixture"
+  # live: companies that connected QuickBooks use it; the demo company keeps sample data.
+  QBO_MODE = "live"
+  QBO_ENV = "sandbox"
+  QBO_REDIRECT_URI = "https://svelte-accounting-agent.fly.dev/api/qbo/callback"
+  SIGNUP_MODE = "open"
   PULL_INTERVAL_MIN = "60"
-  AUTH_URL = "https://laceluxx-books.fly.dev"
+  AUTH_URL = "https://svelte-accounting-agent.fly.dev"
 
 [deploy]
   # Migrations run as the owner role before the new version takes traffic.

@@ -27,6 +27,8 @@ export type Role = 'owner' | 'reviewer' | 'viewer';
 export const orgs = pgTable('orgs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  /** CompanyProfile JSON: what the business does and its coding preferences (feeds AI.entry.recommend). */
+  profileJson: text('profile_json').notNull().default('{}'),
   createdAt: text('created_at').notNull()
 });
 

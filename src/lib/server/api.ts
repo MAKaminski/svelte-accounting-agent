@@ -13,7 +13,7 @@ export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: Requ
     try {
       // Role from the registry entry for this route (unregistered routes: reads → viewer, writes → owner).
       const cmd = commandForRoute(event.request.method, event.route.id);
-      requireRole(event.locals.role, cmd?.role ?? (event.request.method === 'GET' ? 'viewer' : 'owner'));
+      requireRole(event.locals.role, cmd?.role ?? (event.request.method === 'GET' ? 'viewer' : 'owner'), event.locals.identity);
       let body: Record<string, unknown> = {};
       if (event.request.method !== 'GET') {
         const text = await event.request.text();
@@ -22,7 +22,8 @@ export function handle<T>(fn: (ctx: { body: Record<string, unknown>; event: Requ
         }
       }
       const data = await fn({ body, event });
-      if (event.request.method !== 'GET') {
+      // Writes inside a company are audited here; company-less writes (creating a company) audit themselves.
+      if (event.request.method !== 'GET' && cmd?.role !== 'user') {
         await audit(cmd?.process ?? `${event.request.method} ${event.route.id}`, event.params.id ?? null, { command: cmd?.name ?? null, body });
         await armCommitTimer(); // an approve/undo may have opened or closed an undo window
       }

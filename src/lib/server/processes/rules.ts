@@ -9,7 +9,7 @@ export function classifyTxKind(description: string, hasMerchant: boolean): TxKin
   return hasMerchant ? 'card' : 'other';
 }
 
-/** Merchant category codes LaceLuxx sees most. Unknown codes stay unknown (never guessed). */
+/** Common merchant category codes for small businesses. Unknown codes stay unknown (never guessed). */
 export const MCC: Record<string, { label: string; hint: string }> = {
   '9402': { label: 'Postal Services – Government Only', hint: 'Shipping & Postage' },
   '4215': { label: 'Courier Services', hint: 'Shipping & Postage' },

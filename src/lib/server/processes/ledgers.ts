@@ -5,7 +5,7 @@ import { withRun } from './runs';
 import { bankAccountsFromQbo } from './coa';
 import {
   addConnection, connectionView, getAdapter, getConnection, listConnections, setConnectionStatus, updateConnection, capabilitiesOf,
-  type ConnectionConfig, type ConnectionRow
+  type ConnectionRow
 } from '../ledgers/registry';
 import { MercuryAdapter } from '../ledgers/mercury';
 import type { LedgerKind } from '../ledgers/types';
@@ -62,22 +62,24 @@ export async function testLedger(id: string) {
   });
 }
 
-export async function addLedger(body: { kind?: string; name?: string; mode?: string; token?: string; qboBank?: string; confirmBankFeed?: boolean; by?: string }) {
+export async function addLedger(body: { kind?: string; name?: string; mode?: string; token?: string; qboBank?: string; confirmBankFeed?: boolean; by?: string; legalEntity?: string }) {
   return withRun('FE.ledger.add', null, async () => {
     const row = await addConnection({
       kind: (body.kind ?? '') as LedgerKind, name: body.name ?? '', mode: body.mode === 'live' ? 'live' : 'fixture',
       token: body.token || undefined, bankFeedConfirmed: !!body.confirmBankFeed, by: body.by,
-      config: { qboBankAccountIdByAccount: parseBankMap(body.qboBank) ?? {} }
+      config: { qboBankAccountIdByAccount: parseBankMap(body.qboBank) ?? {}, ...(body.legalEntity ? { legalEntityId: body.legalEntity } : {}) }
     });
     return connectionView(row);
   });
 }
 
-export async function configureLedger(id: string, body: { qboBank?: string; confirmBankFeed?: boolean; by?: string }) {
+export async function configureLedger(id: string, body: { qboBank?: string; confirmBankFeed?: boolean; by?: string; mode?: string; token?: string; legalEntity?: string }) {
   return withRun('FE.ledger.add', id, async () => {
     const map = parseBankMap(body.qboBank);
-    const patch: { config?: ConnectionConfig; bankFeedConfirmed?: boolean; by?: string } = { by: body.by };
-    if (map) patch.config = { qboBankAccountIdByAccount: map };
+    const patch: Parameters<typeof updateConnection>[1] = { by: body.by };
+    if (map || body.legalEntity !== undefined) patch.config = { ...(map ? { qboBankAccountIdByAccount: map } : {}), ...(body.legalEntity !== undefined ? { legalEntityId: body.legalEntity } : {}) };
+    if (body.mode === 'live' || body.mode === 'fixture') patch.mode = body.mode;
+    if (body.token) patch.token = body.token;
     if (body.confirmBankFeed !== undefined) patch.bankFeedConfirmed = body.confirmBankFeed;
     return connectionView(await updateConnection(id, patch), (await counts()).get(id));
   });

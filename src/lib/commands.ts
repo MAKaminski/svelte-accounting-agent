@@ -25,7 +25,8 @@ export interface Command {
   returns: z.ZodTypeAny;
   process: string; // processes.yaml id
   /** Least role allowed: viewer (reads), reviewer (decide on entries), owner (ledgers, switches, members). Enforced in handle(). */
-  role: 'viewer' | 'reviewer' | 'owner';
+  /** Minimum role in the current company; 'user' = any signed-in user, even one with no company yet. */
+  role: 'user' | 'viewer' | 'reviewer' | 'owner';
   /** Writes to Slash: CLI requires --yes and supports --dry-run. */
   writesSlash?: boolean;
   shortcut?: string;
@@ -182,6 +183,7 @@ export const commands: Command[] = [
       { name: 'mode', kind: 'flag', type: 'string', in: 'body', help: 'fixture (default) | live' },
       { name: 'token-stdin', kind: 'flag', type: 'boolean', in: 'body', help: 'Read the ledger API token from stdin (never pass it as an argument)' },
       { name: 'qbo-bank', kind: 'flag', type: 'string', in: 'body', help: 'Ledger account → QuickBooks bank account, e.g. acc_chk=10' },
+      { name: 'legal-entity', kind: 'flag', type: 'string', in: 'body', help: 'Slash only: legal entity id for multi-entity accounts' },
       { name: 'confirm-bank-feed', kind: 'flag', type: 'boolean', in: 'body', help: "Confirm the ledger's own QuickBooks sync and the QBO bank feed are off or will be matched" }
     ],
     returns: T.LedgerConnectionSchema, process: 'FE.ledger.add', screen: '/ledgers', feedback: 'Panel closes, row appears', confirm: 'Bank-feed checkbox required for QuickBooks-direct ledgers'
@@ -192,9 +194,12 @@ export const commands: Command[] = [
     params: [
       id('Connection id'),
       { name: 'qbo-bank', kind: 'flag', type: 'string', in: 'body', help: 'Ledger account → QuickBooks bank account, e.g. acc_chk=10' },
-      { name: 'confirm-bank-feed', kind: 'flag', type: 'boolean', in: 'body', help: 'Confirm the bank-feed setting (recorded with who and when)' }
+      { name: 'confirm-bank-feed', kind: 'flag', type: 'boolean', in: 'body', help: 'Confirm the bank-feed setting (recorded with who and when)' },
+      { name: 'mode', kind: 'flag', type: 'string', in: 'body', help: 'fixture | live (live needs a key)' },
+      { name: 'token-stdin', kind: 'flag', type: 'boolean', in: 'body', help: 'Replace the stored API key/token, read from stdin; it is checked against the ledger before saving' },
+      { name: 'legal-entity', kind: 'flag', type: 'string', in: 'body', help: 'Slash only: legal entity id for multi-entity accounts' }
     ],
-    returns: T.LedgerConnectionSchema, process: 'FE.ledger.add', screen: '/ledgers', feedback: 'Saved toast'
+    returns: T.LedgerConnectionSchema, process: 'FE.ledger.add', screen: '/ledgers', feedback: 'Saved toast; a rejected key is not saved'
   },
   {
     name: 'ledger.test', role: 'owner', noun: 'ledger', verb: 'test', summary: 'Test a connection with its stored credentials',
@@ -283,6 +288,30 @@ export const commands: Command[] = [
     name: 'token.revoke', role: 'owner', noun: 'token', verb: 'revoke', summary: 'Revoke an API token (next request with it gets 401)',
     method: 'POST', path: '/api/tokens/:id/revoke', params: [id('Token id (tok_…)'), confirmYes],
     returns: T.ApiTokenSchema, process: 'FE.token.revoke', screen: '/settings/members', feedback: 'Row greys out', confirm: 'Requires --yes'
+  },
+  {
+    name: 'company.create', role: 'user', noun: 'company', verb: 'create', summary: 'Create a company; you become its owner (self-serve sign-up)',
+    method: 'POST', path: '/api/orgs',
+    params: [
+      { name: 'name', kind: 'flag', type: 'string', in: 'body', required: true, help: 'Company name' },
+      { name: 'business', kind: 'flag', type: 'string', in: 'body', required: true, help: 'One or two sentences: what it sells and how it gets paid' }
+    ],
+    returns: T.CompanySchema, process: 'FE.company.create', screen: '/welcome', feedback: 'Button spinner, then the setup checklist'
+  },
+  {
+    name: 'company.show', role: 'viewer', noun: 'company', verb: 'show', summary: 'Show the company profile and setup checklist',
+    method: 'GET', path: '/api/company', params: [],
+    returns: T.CompanySchema, process: 'FE.company.update', screen: '/settings'
+  },
+  {
+    name: 'company.update', role: 'owner', noun: 'company', verb: 'update', summary: 'Update the company name, description and coding rules (used by the agent)',
+    method: 'POST', path: '/api/company',
+    params: [
+      { name: 'name', kind: 'flag', type: 'string', in: 'body', help: 'Company name' },
+      { name: 'business', kind: 'flag', type: 'string', in: 'body', help: 'What the company does' },
+      { name: 'coding-rules', kind: 'flag', type: 'string', in: 'body', help: 'House coding rules, one per line' }
+    ],
+    returns: T.CompanySchema, process: 'FE.company.update', screen: '/settings', feedback: 'Saved toast'
   },
   {
     name: 'orgs.list', role: 'viewer', noun: 'orgs', verb: 'list', summary: 'List the companies you belong to',

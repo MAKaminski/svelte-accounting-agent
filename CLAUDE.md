@@ -1,4 +1,4 @@
-# CLAUDE.md — LaceLuxx Books
+# CLAUDE.md — Accounting Agent
 
 Read ARCHITECTURE.md first. The registries are the source of truth: `src/lib/commands.ts` (interface), `processes.yaml` (processes), `src/lib/server/db/schema.ts` (tables).
 

@@ -87,7 +87,7 @@ describe('M8 · tenancy (two orgs, RLS)', () => {
   it('every write through the API leaves one audit row in its org; secrets are redacted', async () => {
     const r1 = await toggleRoute(ev('POST', '/api/system/components/[id]/state', '/api/system/components/AI.entry.recommend/state', { enabled: false }, { id: 'AI.entry.recommend' }));
     expect(r1.status).toBe(200);
-    const r2 = await addLedgerRoute(ev('POST', '/api/ledgers', '/api/ledgers', { kind: 'mercury', name: 'Mercury', mode: 'live', token: 'mercury-secret-123' }));
+    const r2 = await addLedgerRoute(ev('POST', '/api/ledgers', '/api/ledgers', { kind: 'mercury', name: 'Mercury', mode: 'fixture', token: 'mercury-secret-123' }));
     expect(r2.status).toBe(200);
     const rows = await getDb().select().from(schema.auditLog);
     expect(rows.map((r) => r.action).sort()).toEqual(['FE.component.toggle', 'FE.ledger.add']);

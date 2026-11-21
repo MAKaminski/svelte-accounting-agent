@@ -1,8 +1,8 @@
-import { devBypass } from '../identity';
+import { devBypass, signupOpen } from '../identity';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, schema } from '../db';
 import { config, env } from '../env';
-import { getPorts } from '../ports';
+import { getPorts, qboOAuthConfigured } from '../ports';
 
 export async function settings() {
   const db = getDb();
@@ -11,8 +11,8 @@ export async function settings() {
   try { qboConnected = await getPorts().qbo.connected(); } catch { /* not configured */ }
   return {
     slashMode: config.slashMode, slashKeyPresent: !!env('SLASH_API_KEY'), legalEntityPresent: !!env('SLASH_LEGAL_ENTITY_ID'),
-    qboMode: config.qboMode, qboConnected, modelMode: config.modelMode, modelWorker: config.modelWorker, modelIntegrator: config.modelIntegrator,
-    ollama: !!config.ollamaUrl, devBypass: devBypass(), pullIntervalMin: config.pullIntervalMin, undoWindowMs: config.undoWindowMs,
+    qboMode: config.qboMode, qboConnected, qboOAuth: qboOAuthConfigured(), modelMode: config.modelMode, modelWorker: config.modelWorker, modelIntegrator: config.modelIntegrator,
+    ollama: !!config.ollamaUrl, devBypass: devBypass(), signupOpen: signupOpen(), pullIntervalMin: config.pullIntervalMin, undoWindowMs: config.undoWindowMs,
     accounts: (await db.select().from(schema.dimensionValues).all()).length, lastPullAt: lastPull?.startedAt ?? null
   };
 }
