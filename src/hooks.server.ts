@@ -5,8 +5,8 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { building } from '$app/environment';
 import { handle as authHandle } from './auth';
 import { startScheduler } from '$lib/server/scheduler';
-import { withOrg } from '$lib/server/db';
-import { devBypass, devIdentity, identityForEmail, identityForToken, pickOrg, type Identity } from '$lib/server/identity';
+import { withOrg, withRoot } from '$lib/server/db';
+import { devBypass, devIdentity, identityForEmail, identityForToken, pendingIdentity, pickOrg, type Identity } from '$lib/server/identity';
 import { env } from '$lib/server/env';
 
 if (!building) {
@@ -27,22 +27,37 @@ const app: Handle = async ({ event, resolve }) => {
 
   let id: Identity | null = null;
   const bearer = event.request.headers.get('authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
-  if (bearer) {
-    id = await identityForToken(bearer);
-    if (!id) return json({ error: { code: 'unauthorized', message: 'Invalid or revoked token', source: 'app' } }, { status: 401 });
-  } else if (devBypass()) {
-    id = await devIdentity();
-  } else {
-    const session = await event.locals.auth();
-    if (session?.user?.email) id = await identityForEmail(session.user.email);
-  }
+  const session = bearer || devBypass() ? null : await event.locals.auth();
+  id = await withRoot(async () => {
+    if (bearer) return identityForToken(bearer);
+    if (devBypass()) return devIdentity();
+    if (session?.user?.email) return (await identityForEmail(session.user.email)) ?? (await pendingIdentity(session.user.email));
+    return null;
+  });
+  if (bearer && !id) return json({ error: { code: 'unauthorized', message: 'Invalid or revoked token', source: 'app' } }, { status: 401 });
 
   if (!id) {
     if (PUBLIC(path)) return resolve(event);
     if (path.startsWith('/api/')) return json({ error: { code: 'unauthorized', message: 'Sign in required (CLI: set BOOKS_TOKEN)', source: 'app' } }, { status: 401 });
     redirect(303, `/login?next=${encodeURIComponent(path)}`);
   }
-  if (path === '/login') redirect(303, '/queue');
+  if (path === '/login') redirect(303, id.memberships.length ? '/queue' : '/welcome');
+
+  // Creating a company runs outside any company's context (it writes into the new one itself).
+  if (path === '/api/orgs' && event.request.method === 'POST') {
+    event.locals.identity = id;
+    event.locals.user = id.email;
+    return resolve(event);
+  }
+
+  // Signed in, no company yet (open sign-up): only the welcome screen and "create company" are reachable.
+  if (!id.memberships.length) {
+    event.locals.identity = id;
+    event.locals.user = id.email;
+    if (path === '/welcome' || path === '/logout') return resolve(event);
+    if (path.startsWith('/api/')) return json({ error: { code: 'no_company', message: 'Create a company first (/welcome)', source: 'app' } }, { status: 403 });
+    redirect(303, '/welcome');
+  }
 
   const m = pickOrg(id, event.cookies.get('books_org'));
   event.locals.identity = id;

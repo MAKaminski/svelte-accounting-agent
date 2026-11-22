@@ -23,6 +23,9 @@ const RANK: Record<Role, number> = { viewer: 0, reviewer: 1, owner: 2 };
 export const atLeast = (have: Role | null | undefined, need: Role) => !!have && RANK[have] >= RANK[need];
 export const normEmail = (e: string) => e.trim().toLowerCase();
 
+/** SIGNUP_MODE=open (default): any verified Google account may sign in and create a company. invite: invite-only. */
+export const signupOpen = () => env('SIGNUP_MODE', 'open') !== 'invite';
+
 /** Dev bypass: no Google credentials and not production → everyone is owner@local of the default org. */
 export const devBypass = () => !env('AUTH_GOOGLE_ID') && env('NODE_ENV') !== 'production';
 export const DEV_EMAIL = 'owner@local';
@@ -40,7 +43,8 @@ async function userByEmail(email: string) {
 }
 
 /**
- * MW.auth.signin (rule) — allow a Google sign-in only for an email with a membership or an open invite.
+ * MW.auth.signin (rule) — allow a verified Google sign-in. Open sign-up: anyone (they create a company on
+ * /welcome). Invite-only: only an email with a membership or an open invite.
  * Creates/updates the user and accepts every open invite for that email. Returns false to refuse.
  */
 export async function signIn(p: { email: string | null | undefined; name?: string | null; sub?: string | null; emailVerified?: boolean }): Promise<boolean> {
@@ -50,8 +54,10 @@ export async function signIn(p: { email: string | null | undefined; name?: strin
   const email = normEmail(p.email);
   const invites = await db.select().from(schema.invites).where(and(eq(schema.invites.email, email), isNull(schema.invites.acceptedAt)));
   let user = await userByEmail(email);
-  if (!user && !invites.length) return false;
-  if (user && !invites.length && !(await membershipsOf(user.id)).length) return false;
+  if (!signupOpen()) {
+    if (!user && !invites.length) return false;
+    if (user && !invites.length && !(await membershipsOf(user.id)).length) return false;
+  }
   const now = nowIso();
   if (!user) {
     user = { id: newId('usr'), email, name: p.name ?? null, googleSub: p.sub ?? null, lastSeenAt: now, createdAt: now };
@@ -76,8 +82,20 @@ export async function identityForEmail(email: string): Promise<Identity | null> 
   return { userId: u.id, email: u.email, name: u.name, memberships };
 }
 
+/** Open sign-up: a signed-in user who has no company yet (memberships = []). They may only create one. */
+export async function pendingIdentity(email: string): Promise<Identity | null> {
+  if (!signupOpen()) return null;
+  await initDb();
+  const u = await userByEmail(email);
+  return u ? { userId: u.id, email: u.email, name: u.name, memberships: [] } : null;
+}
+
 /** Dev bypass identity: owner@local, owner of the default org (created on first use). */
+let devReady = false;
 export async function devIdentity(): Promise<Identity> {
+  // Bootstrap once per process: later requests may arrive inside another company's context (SvelteKit's
+  // server-side fetch from a page load inherits it), where owner-table writes would hit row-level security.
+  if (devReady) return (await identityForEmail(DEV_EMAIL))!;
   const orgId = await ensureOrg(DEFAULT_ORG_ID());
   const db = getRootDb();
   let u = await userByEmail(DEV_EMAIL);
@@ -86,6 +104,7 @@ export async function devIdentity(): Promise<Identity> {
     await db.insert(schema.users).values(u).onConflictDoNothing();
   }
   await db.insert(schema.memberships).values({ id: 'mem_local_owner', orgId, userId: u.id, role: 'owner', createdAt: nowIso() }).onConflictDoNothing();
+  devReady = true;
   return (await identityForEmail(DEV_EMAIL))!;
 }
 
@@ -126,6 +145,10 @@ export async function identityForToken(raw: string): Promise<Identity | null> {
   return { userId: u.id, email: u.email, name: u.name, memberships, token: { id: t.id, orgId: t.orgId } };
 }
 
-export function requireRole(have: Role | null | undefined, need: Role) {
+export function requireRole(have: Role | null | undefined, need: Role | 'user', identity?: Identity | null) {
+  if (need === 'user') {
+    if (!identity) throw new AppError('unauthorized', 'Sign in required', 401);
+    return;
+  }
   if (!atLeast(have, need)) throw new AppError('forbidden', `${need[0].toUpperCase() + need.slice(1)} role needed`, 403);
 }

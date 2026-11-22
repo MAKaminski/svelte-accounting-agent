@@ -1,13 +1,14 @@
 // AI.entry.recommend — rule: cache + guards → judgment: model → rule: Zod + MW.entry.validate.
 import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
-import { getDb, schema } from '../db';
+import { currentOrgId, getDb, schema } from '../db';
+import { getProfile } from '../profile';
 import { getPorts } from '../ports';
 import { config } from '../env';
 import { AppError, newId, nowIso, sha256, stableJson } from '../util';
 import { costUsd, type Usage } from '../ai/pricing';
 import { ModelUnavailableError, type ModelResult } from '../ai/model';
-import { buildRecommendSystem, PROMPT_VERSION, RECOMMEND_JSON_SCHEMA } from '../prompts/recommend.v1';
+import { buildRecommendSystem, PROMPT_VERSION, RECOMMEND_JSON_SCHEMA } from '../prompts/recommend.v2';
 import { type TxKind } from './rules';
 import { txKindOf } from './research';
 import { chartSourceOf } from '../ledgers/registry';
@@ -51,11 +52,12 @@ export interface RecResult {
 
 const ZERO: Usage = { fresh: 0, cacheWrite: 0, cacheRead: 0, out: 0 };
 
-/** Level A cache key: hash(inputs + prompt version + model route + account set). */
+/** Level A cache key: hash(inputs + prompt version + model route + account set + company profile). */
 export async function inputHashFor(input: RecInput, ctx: RecContext): Promise<string> {
   const route = ctx.payoutMatched ? config.modelIntegrator : config.modelWorker;
   const mode = await isEnabled('AI.entry.recommend') ? 'on' : 'off';
-  return sha256(stableJson(input) + PROMPT_VERSION + route + stableJson(ctx.accounts.map((a) => a.id).sort()) + (ctx.precodedValueId ?? '') + mode);
+  const p = await getProfile(currentOrgId());
+  return sha256(stableJson(input) + PROMPT_VERSION + route + stableJson(ctx.accounts.map((a) => a.id).sort()) + (ctx.precodedValueId ?? '') + mode + sha256(p.business + '\n' + p.codingRules));
 }
 
 function validationContext(input: RecInput, ctx: RecContext) {
@@ -96,7 +98,8 @@ export async function recommendForInput(input: RecInput, ctx: RecContext): Promi
 
   // judgment: model call with one retry, then one fallback to the integrator tier.
   const { model } = getPorts();
-  const system = buildRecommendSystem(ctx.accounts);
+  const profile = await getProfile(currentOrgId());
+  const system = buildRecommendSystem(ctx.accounts, profile);
   const user = JSON.stringify(input);
   const attempt = (m: string) => model.complete({ step: 'recommend', model: m, system, user, maxTokens: 1500, jsonSchema: RECOMMEND_JSON_SCHEMA as unknown as Record<string, unknown> });
   const plan = [route, route, ...(route === config.modelIntegrator ? [] : [config.modelIntegrator])];

@@ -146,7 +146,7 @@ export async function commit(entryId: string): Promise<void> {
     if (out.state === 'ready') {
       const names = await accountNames();
       const lines = JSON.parse(d.finalLinesJson) as Line[];
-      await annotateLedger(entryId, `Coded in QuickBooks by LaceLuxx Books: ${lines.map((l) => names.get(l.valueId) ?? l.valueId).join(' / ')}`);
+      await annotateLedger(entryId, `Coded in QuickBooks by Accounting Agent: ${lines.map((l) => names.get(l.valueId) ?? l.valueId).join(' / ')}`);
     }
     return;
   }

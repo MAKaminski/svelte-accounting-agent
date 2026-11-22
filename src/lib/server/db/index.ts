@@ -164,7 +164,7 @@ async function acquire(orgId: string, exec: (q: string) => Promise<void>) {
   while (lock && lock.orgId !== orgId) await new Promise<void>((r) => waiters.push(r));
   if (lock) { lock.count++; return; }
   lock = { orgId, count: 1 };
-  await enterOrg(exec, orgId);
+  if (orgId === ROOT) await leaveOrg(exec); else await enterOrg(exec, orgId);
 }
 async function release(exec: (q: string) => Promise<void>) {
   if (!lock || --lock.count > 0) return;
@@ -176,6 +176,21 @@ async function release(exec: (q: string) => Promise<void>) {
     lock = null;
     waiters.splice(0).forEach((w) => w());
   }
+}
+
+const ROOT = '\u0000root';
+/**
+ * Owner-connection work (users, memberships lookup, orgs) outside any company. On Postgres the owner pool is
+ * separate, so this is just fn(). On single-connection PGlite (local dev) it takes the connection's turn like a
+ * company does, so a concurrent request's company role never leaks into these queries.
+ */
+export async function withRoot<T>(fn: () => Promise<T>): Promise<T> {
+  await initDb();
+  const r = root!;
+  if (r.kind !== 'pglite' || als.getStore() || sessionOrg) return fn();
+  const exec = (q: string) => r.db.execute(sql.raw(q)).then(() => undefined);
+  await acquire(ROOT, exec);
+  try { return await fn(); } finally { await release(exec); }
 }
 
 /** Run fn with the org's RLS context. Re-entrant: a nested call for the same org reuses the context. */

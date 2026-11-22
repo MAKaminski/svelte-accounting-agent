@@ -151,6 +151,7 @@
     <span class="ring" aria-hidden="true">✓</span>
     <p class="big">{data.state === 'recommended' ? 'Nothing to review.' : `Nothing here: ${filters.find((f) => f.key === data.state)?.label.toLowerCase()}.`}</p>
     <p class="muted">{data.all.length ? `${data.all.length} entries in other states.` : 'No entries pulled yet. Pull to fetch transactions from your ledgers.'}</p>
+    {#if !data.all.length && data.company && data.company.setup.some((st) => !st.done && st.id !== 'first')}<a class="btn primary" href="/settings">Finish setup first ({data.company.setup.filter((st) => st.done).length}/{data.company.setup.length})</a>{/if}
     {#if data.state === 'recommended'}<button class="btn" type="button" onclick={pull}>Pull entries</button>{/if}
   </div>
 {:else}

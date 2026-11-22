@@ -58,7 +58,7 @@ describe('M7 · ledger connections', () => {
     expect(d.state).toBe('ready');
     const creates = ctx.qboWriter.writes.filter((w) => w.op === 'create');
     expect(creates).toHaveLength(1);
-    expect(creates[0]).toMatchObject({ requestId: d.id, txn: { type: 'Purchase', bankAccountId: '10', totalCents: -3000, privateNote: `LaceLuxx Books ${d.id}` } });
+    expect(creates[0]).toMatchObject({ requestId: d.id, txn: { type: 'Purchase', bankAccountId: '10', totalCents: -3000, privateNote: `Accounting Agent ${d.id}` } });
     expect(creates[0].txn.lines).toEqual([expect.objectContaining({ accountId: '53', amountCents: 3000 })]);
     expect((await getEntry(id))!.qboTxnId).toBe(creates[0].txn.id);
     // Force a second commit attempt: dedupe finds our own txn by marker, nothing new is written.
@@ -163,7 +163,7 @@ describe('M7 · ledger connections', () => {
     expect(ctx.mercury.updates).toHaveLength(0);
     await setComponentState('mercury.annotate', true, 'owner');
     await approve((await byName('Canva'))[0].id, {});
-    expect(ctx.mercury.updates).toEqual([expect.objectContaining({ id: 'm-0007', body: { note: 'Coded in QuickBooks by LaceLuxx Books: Software & Subscriptions' } })]);
+    expect(ctx.mercury.updates).toEqual([expect.objectContaining({ id: 'm-0007', body: { note: 'Coded in QuickBooks by Accounting Agent: Software & Subscriptions' } })]);
   });
 
   it('health check reports the adapter state; a failing Mercury token fails only that connection', async () => {

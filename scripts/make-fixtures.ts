@@ -1,5 +1,5 @@
 // Generates the synthetic fixtures under fixtures/. Deterministic; rerun with `pnpm tsx scripts/make-fixtures.ts`.
-// Every value here is invented. No real LaceLuxx data ever goes into fixtures or git.
+// Every value here is invented. No real company data ever goes into fixtures or git.
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { normalizeMerchant } from '../src/lib/server/util';
 

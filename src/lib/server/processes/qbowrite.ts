@@ -14,7 +14,11 @@ import { accountNames } from './view';
 
 const UNCATEGORIZED = /uncategorized|ask my accountant/i;
 export const DEDUPE_DAYS = 3;
-export const qboMarker = (decisionId: string) => `LaceLuxx Books ${decisionId}`;
+export const QBO_MARKER_PREFIX = 'Accounting Agent ';
+/** Earlier builds wrote this prefix; dedupe still recognises it so old entries are never seen as bank-feed duplicates. */
+const LEGACY_MARKER_PREFIXES = ['LaceLuxx Books '];
+export const qboMarker = (decisionId: string) => `${QBO_MARKER_PREFIX}${decisionId}`;
+export const isOwnMarker = (note: string | null | undefined) => !!note && [QBO_MARKER_PREFIX, ...LEGACY_MARKER_PREFIXES].some((p) => note.startsWith(p));
 
 type Outcome = { state: 'ready' | 'recommended' | 'invalid' | 'approved'; reason: string | null; qboTxnId?: string; qboTxnType?: string; retry?: boolean };
 
@@ -45,8 +49,8 @@ export async function writeToQbo(entryId: string, decision: { id: string; finalL
       const candidates = await writer.findCandidates({ bankAccountId, amountCents: e.amountCents, date: item.tx.date, days: DEDUPE_DAYS });
       const ours = candidates.find((c) => c.privateNote === marker);
       if (ours) return { state: 'ready', reason: null, qboTxnId: ours.id, qboTxnType: ours.type };
-      // Another item's LaceLuxx write is not a duplicate of this one (recurring same-amount charges).
-      const match = candidates.find((c) => !c.privateNote?.startsWith('LaceLuxx Books '));
+      // Another item's write by this app is not a duplicate of this one (recurring same-amount charges).
+      const match = candidates.find((c) => !isOwnMarker(c.privateNote));
       if (match) {
         const wanted = [...qLines.map((l) => l.accountId)].sort().join(',');
         const has = [...match.lines.map((l) => l.accountId)].sort().join(',');

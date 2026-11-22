@@ -10,8 +10,8 @@ Codes a company's Slash and Mercury transactions to QuickBooks accounts, explain
 |---|---|
 | Run locally | `pnpm i && pnpm db:reset && pnpm db:seed && pnpm dev` (Postgres in-process via PGlite at `data/pglite`; no Docker) |
 | Local URL | `http://localhost:5173` → `/queue` |
-| Deployed URL | `https://laceluxx-books.fly.dev` (Fly.io iad + Neon Postgres; first deploy in M9 step 5) |
-| Auth | Google sign-in, invite-only (Workspace accounts; Auth.js at `/auth/*`). Locally with no `AUTH_GOOGLE_ID`: dev bypass, you are `owner@local` (refused in production). CLI: `BOOKS_TOKEN` from Settings → Members (`Authorization: Bearer llx_…`). First owner of a deployment: `pnpm org:invite <google-email>` |
+| Deployed URL | `https://svelte-accounting-agent.fly.dev` (Fly.io iad + Neon Postgres; first deploy in M9 step 5) |
+| Auth | Google sign-in (Auth.js at `/auth/*`). `SIGNUP_MODE=open` (default): any verified Google account signs in and creates a company on `/welcome`; `invite`: invited emails only. Locally with no `AUTH_GOOGLE_ID`: dev bypass, you are `owner@local` (refused in production). CLI: `BOOKS_TOKEN` from Settings → Members (`Authorization: Bearer llx_…`). Invite-only servers: `pnpm org:invite <google-email>` |
 | Roles | viewer (read), reviewer (decide on entries), owner (ledgers, switches, members, tokens) — per command in the registry, enforced in `handle()` |
 | First screen | `/queue`: entries needing review, newest first, recommendation + confidence + Approve per row |
 | CLI | `pnpm books --help` (dev) · `node dist/books.mjs` (built) |
@@ -54,7 +54,7 @@ Designed mockups: Claude design canvas "Accounting Agent screens". The v2 dark a
 | Run the eval cases (exit 1 if any fail) | `/evals` | `v` | `POST /api/evals/run` | Progress bar | — |
 | Turn a decided entry into a golden eval case | `/entry/[id]` | — | `POST /api/evals/cases` | Toast | — |
 | Add a ledger connection (starts inactive) | `/ledgers` | — | `POST /api/ledgers` | Panel closes, row appears | Bank-feed checkbox required for QuickBooks-direct ledgers |
-| Update bank-account mapping or bank-feed confirmation | `/ledgers` | — | `POST /api/ledgers/:id/config` | Saved toast | — |
+| Update bank-account mapping or bank-feed confirmation | `/ledgers` | — | `POST /api/ledgers/:id/config` | Saved toast; a rejected key is not saved | — |
 | Test a connection with its stored credentials | `/ledgers` | — | `POST /api/ledgers/:id/test` | Spinner, then ok/failed badge | — |
 | Activate a connection (pulled hourly, approvals allowed) | `/ledgers` | — | `POST /api/ledgers/:id/state` | Status flips | Refused with the blockers listed |
 | Deactivate a connection (not pulled, no approvals; items stay visible) | `/ledgers` | — | `POST /api/ledgers/:id/state` | Status flips | — |
@@ -65,6 +65,8 @@ Designed mockups: Claude design canvas "Accounting Agent screens". The v2 dark a
 | Remove a member or cancel an invite (the last owner can't be removed) | `/settings/members` | — | `POST /api/members/:id/remove` | Row disappears | Requires --yes |
 | Create an API token for the CLI (shown once) | `/settings/members` | — | `POST /api/tokens` | Token shown once with Copy | — |
 | Revoke an API token (next request with it gets 401) | `/settings/members` | — | `POST /api/tokens/:id/revoke` | Row greys out | Requires --yes |
+| Create a company; you become its owner (self-serve sign-up) | `/welcome` | — | `POST /api/orgs` | Button spinner, then the setup checklist | — |
+| Update the company name, description and coding rules (used by the agent) | `/settings` | — | `POST /api/company` | Saved toast | — |
 | Switch the current company (web session) | `/queue` | — | `POST /api/orgs/:id/select` | Page reloads in that company | — |
 | Command palette | everywhere | `⌘K` | any registry command | opens instantly | — |
 <!-- /gen:actions -->
@@ -95,8 +97,8 @@ Queue keyboard: `j`/`k` move, `a` approve, `Enter` open, `p` pull, `u` undo. Ent
 | `books eval add` | `<entry>` `--json` | Turn a decided entry into a golden eval case | reviewer | 0 · 1 · 2 | `POST /api/evals/cases` | `FE.eval.add` |
 | `books ledgers list` | `--json` | List ledger connections (Slash, Mercury, …) with capabilities and status | viewer | 0 · 1 · 2 | `GET /api/ledgers` | `FE.ledgers.list` |
 | `books ledger show` | `<id>` `--json` | Show one connection: capabilities, blockers, ledger and QuickBooks bank accounts | viewer | 0 · 1 · 2 | `GET /api/ledgers/:id` | `FE.ledgers.list` |
-| `books ledger add` | `--kind` `--name` `--mode` `--token-stdin` `--qbo-bank` `--confirm-bank-feed` `--json` | Add a ledger connection (starts inactive) | owner | 0 · 1 · 2 | `POST /api/ledgers` | `FE.ledger.add` |
-| `books ledger configure` | `<id>` `--qbo-bank` `--confirm-bank-feed` `--json` | Update bank-account mapping or bank-feed confirmation | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/config` | `FE.ledger.add` |
+| `books ledger add` | `--kind` `--name` `--mode` `--token-stdin` `--qbo-bank` `--legal-entity` `--confirm-bank-feed` `--json` | Add a ledger connection (starts inactive) | owner | 0 · 1 · 2 | `POST /api/ledgers` | `FE.ledger.add` |
+| `books ledger configure` | `<id>` `--qbo-bank` `--confirm-bank-feed` `--mode` `--token-stdin` `--legal-entity` `--json` | Update bank-account mapping or bank-feed confirmation | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/config` | `FE.ledger.add` |
 | `books ledger test` | `<id>` `--json` | Test a connection with its stored credentials | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/test` | `MW.ledger.test` |
 | `books ledger enable` | `<id>` `--json` | Activate a connection (pulled hourly, approvals allowed) | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
 | `books ledger disable` | `<id>` `--json` | Deactivate a connection (not pulled, no approvals; items stay visible) | owner | 0 · 1 · 2 | `POST /api/ledgers/:id/state` | `FE.ledger.toggle` |
@@ -114,6 +116,9 @@ Queue keyboard: `j`/`k` move, `a` approve, `Enter` open, `p` pull, `u` undo. Ent
 | `books tokens list` | `--json` | List API tokens of this company | owner | 0 · 1 · 2 | `GET /api/tokens` | `FE.tokens.list` |
 | `books token create` | `--name` `--json` | Create an API token for the CLI (shown once) | owner | 0 · 1 · 2 | `POST /api/tokens` | `FE.token.create` |
 | `books token revoke` | `<id>` `--yes` `--json` | Revoke an API token (next request with it gets 401) | owner | 0 · 1 · 2 | `POST /api/tokens/:id/revoke` | `FE.token.revoke` |
+| `books company create` | `--name` `--business` `--json` | Create a company; you become its owner (self-serve sign-up) | user | 0 · 1 · 2 | `POST /api/orgs` | `FE.company.create` |
+| `books company show` | `--json` | Show the company profile and setup checklist | viewer | 0 · 1 · 2 | `GET /api/company` | `FE.company.update` |
+| `books company update` | `--name` `--business` `--coding-rules` `--json` | Update the company name, description and coding rules (used by the agent) | owner | 0 · 1 · 2 | `POST /api/company` | `FE.company.update` |
 | `books orgs list` | `--json` | List the companies you belong to | viewer | 0 · 1 · 2 | `GET /api/orgs` | `FE.orgs.list` |
 | `books org select` | `<id>` `--json` | Switch the current company (web session) | viewer | 0 · 1 · 2 | `POST /api/orgs/:id/select` | `FE.org.select` |
 <!-- /gen:cli -->
@@ -206,7 +211,7 @@ flowchart LR
     DB[("Neon Postgres (direct endpoint) · RLS per company · role books_app<br/>local/tests: PGlite")]
   end
   subgraph IN[Infrastructure]
-    C["Fly machine laceluxx-books iad [shared-cpu-1x / 512Mi] ×1"]
+    C["Fly machine svelte-accounting-agent iad [shared-cpu-1x / 512Mi] ×1"]
     NEON["Neon Free aws-us-east-1 [0.25 CU, scale to zero]"]
     OL["optional ollama [8B Q4 · ~6 GB]"]
   end
@@ -453,6 +458,7 @@ erDiagram
   orgs {
     text id PK
     text name
+    text profile_json
     text created_at
   }
   payout_rows {
@@ -680,7 +686,7 @@ State cards (table → writers):
 | Component (table) | Written by |
 |---|---|
 | `api_tokens` | `FE.member.remove`, `FE.token.create`, `FE.token.revoke` |
-| `audit_log` | `MW.audit.record` |
+| `audit_log` | `MW.audit.record`, `FE.company.create` |
 | `component_states` | `FE.component.toggle` |
 | `decisions` | `FE.entry.approve`, `FE.entry.undo`, `FE.entry.ask`, `FE.entry.reject` |
 | `dimension_values` | `MW.coa.pull`, `MW.qbo.accounts` |
@@ -692,8 +698,8 @@ State cards (table → writers):
 | `ledger_transactions` | `MW.ledger.pull` |
 | `local_mappings` | `FE.mapping.apply` |
 | `mapping_proposals` | `MW.mapping.propose`, `FE.mapping.apply` |
-| `memberships` | `MW.auth.signin`, `FE.member.invite`, `FE.member.role`, `FE.member.remove` |
-| `orgs` | `MW.org.create` |
+| `memberships` | `MW.auth.signin`, `FE.member.invite`, `FE.member.role`, `FE.member.remove`, `FE.company.create` |
+| `orgs` | `MW.org.create`, `FE.company.create`, `FE.company.update` |
 | `payout_rows` | `MW.payouts.import` |
 | `qbo_tokens` | `MW.qbo.connect` |
 | `questions` | `FE.entry.ask`, `FE.question.answer` |
@@ -714,7 +720,7 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `MW.ledger.pull` | Hourly (PULL_INTERVAL_MIN), `books entries pull [--connection]`, Pull button | { since?, dryRun?, connectionId? } + per active connection: adapter.listItems + listHistory (normalized LedgerItem) | **rule**: for each active ledger connection: list items in review + history through its adapter<br>**rule**: upsert by (connection, external id); changed raw (e.g. mapping recode) → back to fetched; ready→synced<br>**rule**: queue research → recommend for new/changed items; a failing connection is recorded, others continue | PullResult; ledger_items fetched, ledger_transactions | 2: Slash 429/5xx after 5 tries with jitter; run marked failed | tests/m1-pull.test.ts — 23 in → 23 rows, rerun idempotent | 10000 ms · $0 |
 | `MW.entry.research` | After pull, after an owner answer, payout import | accounting entry + transaction; payout_rows; QuickBooks vendors/purchases | **rule**: Slash history by merchant id (or normalized description)<br>**rule**: QuickBooks purchases by vendor name, trigram ≥ 0.6<br>**rule**: MCC table lookup<br>**rule**: payout match: amount ± $0.01, date ± 3 days<br>**rule**: no history + card merchant → AI.merchant.identify | evidence rows; state researched | Partial: missing source noted in state_reason; continues | tests/m2-recommend.test.ts — USPS evidence kinds, QuickBooks-down partial | 1500 ms · $0 |
 | `AI.merchant.identify` | Research found no Slash or QuickBooks history | { merchantName, mcc, description } | **rule**: build prompt identify.v1<br>**judgment** (Ollama 8B if OLLAMA_URL else Haiku 5.5 low): classify merchant kind<br>**rule**: Zod; failure → unknown | evidence(kind=merchant_profile) | Schema fail or model down → kind unknown, confidence 0 | Fixture identify table; live: ≥ 8/10 merchant fixtures (TBD — add 10 cases) | 1500 ms · $0.0003 |
-| `AI.entry.recommend` | After research; `books entry recommend`; Recommend again | RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts | **rule**: exact-input cache: unchanged hash → reuse stored output<br>**rule**: Slash mapping precoded → code it (rules:mapping)<br>**rule**: own transfer / person payment without owner answer → ask (rules:guard)<br>**judgment** (Haiku 5.5 low; Sonnet 5.5 medium when a payout row matched): account, lines, memo, confidence, question<br>**rule**: Zod; 1 retry; fallback to Sonnet once; then invalid<br>**rule**: MW.entry.validate | recommendations row (tokens, cost, ttft, e2e); state recommended \| invalid | Model down after retry + fallback → invalid 'Model unavailable, retry' | 6/6 seed eval cases; ≥ 95% shadow precision on first 100 decisions | 4000 ms · $0.0005 |
+| `AI.entry.recommend` | After research; `books entry recommend`; Recommend again | RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts + company profile (business, coding rules) | **rule**: exact-input cache: unchanged hash → reuse stored output<br>**rule**: Slash mapping precoded → code it (rules:mapping)<br>**rule**: own transfer / person payment without owner answer → ask (rules:guard)<br>**judgment** (Haiku 5.5 low; Sonnet 5.5 medium when a payout row matched): account, lines, memo, confidence, question<br>**rule**: Zod; 1 retry; fallback to Sonnet once; then invalid<br>**rule**: MW.entry.validate | recommendations row (tokens, cost, ttft, e2e); state recommended \| invalid | Model down after retry + fallback → invalid 'Model unavailable, retry' | 6/6 seed eval cases; ≥ 95% shadow precision on first 100 decisions | 4000 ms · $0.0005 |
 | `MW.entry.validate` | After every recommendation and every approval | RecOutput + { amountCents, enabled accounts, tx kind, hasOwnerAnswer } | **rule**: sum = amount, accounts enabled, integer cents, ask has question, never code transfers | error list (empty = valid) | — | tests/rules.test.ts | 5 ms · $0 |
 | `FE.entry.approve` | Button a / Save edits e, `books entry approve <id> --yes` | entry id, optional edited lines + memo, override, later | **rule**: no open question (unless override); state recommended/invalid; validate lines<br>**human**: decision recorded with who and when (approved \| edited)<br>**rule**: later: hold for the undo window (pending_until); else commit now | Decision; state approved | 1: open question, bad state, invalid lines | tests/m3-write.test.ts, tests/e2e/queue.spec.ts | 800 ms · $0 |
 | `FE.entry.undo` | Undo in toast (u), `books entry undo <id>` | entry id inside its undo window | **human**: undone decision recorded; state back to recommended | Decision; state recommended | 1: window closed (already sending) | tests/m3-write.test.ts — no Slash write after undo | 300 ms · $0 |
@@ -737,16 +743,16 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `FE.coa.list` | Entry screen account picker, `books coa list` | — | **rule**: read dimension_values | Account[] | — | e2e | 100 ms · $0 |
 | `FE.system.graph` | /system screens, `books system graph`, `books components list`, `books component show` | registries (processes.yaml, commands.ts) + component_states + runs (7 days) | **rule**: join registry nodes with on/off state and 7-day metrics; derive edges from traces and tool usage | SystemGraph { nodes[], edges[] } / Component[] / ComponentDetail | — | tests/m6-control.test.ts | 100 ms · $0 |
 | `FE.component.toggle` | /system toggle (t), `books component enable\|disable <id>` | component id (process or tool) + enabled | **rule**: reject components with toggle: false<br>**human**: state recorded with who and when | Component; component_states row | 1: component cannot be switched off / unknown id | tests/m6-control.test.ts, tests/e2e/system.spec.ts | 300 ms · $0 |
-| `MW.qbo.write` | Commit after the undo window for a connection with capabilities.code = 'qbo_direct' (Mercury) | decision lines (qbo:<Id> values) + item + connection bank-account mapping | **rule**: map ledger account → QuickBooks bank account and qbo:<Id> → QuickBooks account<br>**rule**: dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other LaceLuxx-written txns<br>**rule**: uncategorized match → sparse-update its lines; same account → no write; other account → entry invalid; none → create with requestid = decision id | ledger_items ready + qbo_txn_id/qbo_txn_type, or invalid/recommended with a QUICKBOOKS reason | QuickBooks 4xx/5xx → stays approved, retry in 60 s; missing mapping → recommended with reason; conflicting match → invalid | tests/m7-ledgers.test.ts — create once, idempotent rerun, uncategorized update, conflict → invalid, qbo.write off → held | 1500 ms · $0 |
-| `MW.ledger.annotate` | After MW.qbo.write succeeds (optional) | entry + final account names | **rule**: adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by LaceLuxx Books: <account>" | note on the ledger transaction | Failure noted on the entry; QuickBooks coding stands | tests/m7-ledgers.test.ts | 1500 ms · $0 |
+| `MW.qbo.write` | Commit after the undo window for a connection with capabilities.code = 'qbo_direct' (Mercury) | decision lines (qbo:<Id> values) + item + connection bank-account mapping | **rule**: map ledger account → QuickBooks bank account and qbo:<Id> → QuickBooks account<br>**rule**: dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other txns this app wrote<br>**rule**: uncategorized match → sparse-update its lines; same account → no write; other account → entry invalid; none → create with requestid = decision id | ledger_items ready + qbo_txn_id/qbo_txn_type, or invalid/recommended with a QUICKBOOKS reason | QuickBooks 4xx/5xx → stays approved, retry in 60 s; missing mapping → recommended with reason; conflicting match → invalid | tests/m7-ledgers.test.ts — create once, idempotent rerun, uncategorized update, conflict → invalid, qbo.write off → held | 1500 ms · $0 |
+| `MW.ledger.annotate` | After MW.qbo.write succeeds (optional) | entry + final account names | **rule**: adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by Accounting Agent: <account>" | note on the ledger transaction | Failure noted on the entry; QuickBooks coding stands | tests/m7-ledgers.test.ts | 1500 ms · $0 |
 | `MW.qbo.accounts` | MW.coa.pull when any connection codes against QuickBooks | QuickBooks Account list | **rule**: expense/income/COGS/equity accounts become qbo:<Id> coding targets; bank and Uncategorized accounts disabled | dimension_values (source qbo) | 2: QuickBooks error | tests/m7-ledgers.test.ts | 2000 ms · $0 |
 | `MW.ledger.test` | /ledgers Test, `books ledger test <id>` | connection id | **rule**: adapter.health(): list accounts with the stored credentials | LedgerDetail with health | health.ok = false with the adapter message | tests/m7-ledgers.test.ts | 2000 ms · $0 |
-| `FE.ledger.add` | /ledgers Add connection, `books ledger add` | { kind, name, mode, token?, config (account → QuickBooks bank mapping), bankFeedConfirmed } | **human**: owner adds the connection and confirms the bank-feed setting (recorded with who and when); token stored AES-GCM encrypted | ledger_connections row (inactive) | 1: bad kind, missing token for live | tests/m7-ledgers.test.ts, tests/e2e/ledgers.spec.ts | 300 ms · $0 |
+| `FE.ledger.add` | /ledgers Add connection, `books ledger add` | { kind, name, mode, token?, legalEntity?, config (account → QuickBooks bank mapping), bankFeedConfirmed } — add or configure (replace key, switch to live) | **human**: owner adds the connection, pastes the ledger's API key, and confirms the bank-feed setting (recorded with who and when)<br>**rule**: live key → checked with the ledger (adapter.health) before saving; rejected → 422 naming where to find the key, nothing stored; accepted → AES-GCM encrypted per company | ledger_connections row (inactive) | 1: bad kind, missing key for live; 422: key rejected by the ledger (not stored) | tests/m7-ledgers.test.ts, tests/m10-onboarding.test.ts, tests/e2e/ledgers.spec.ts | 300 ms · $0 |
 | `FE.ledger.toggle` | /ledgers Activate/Deactivate, `books ledger enable\|disable <id>` | connection id + active | **rule**: activation blockers: qbo_direct needs bank-feed confirmation + bank mapping; live Mercury needs a token<br>**human**: state change | connection status | 1: blockers listed | tests/m7-ledgers.test.ts | 300 ms · $0 |
 | `FE.ledgers.list` | /ledgers, `books ledgers list`, `books ledger show` | — | **rule**: connections with capabilities, blockers, counts (never credentials) | LedgerConnection[] / LedgerDetail | — | e2e | 100 ms · $0 |
 | `MW.org.create` | First boot (default org), `books orgs create` (M8 step 3), tests | { name: string, id?: org_<letters, digits, - or _> } | **rule**: validate name and id; insert orgs row as the owner role (orgs is global, no RLS)<br>**rule**: inside the new org's RLS context: default Slash connection (inactive) + a copy of the 9 seed eval cases | org id; orgs row, ledger_connections row, 9 eval_cases rows for that org | 1: bad name or id (400) | tests/m8-tenancy.test.ts — each new org gets its own 9 eval cases; org B sees none of A's rows | 300 ms · $0 |
 | `MW.audit.record` | Every successful mutating API call (inside handle()) | { actor: user id \| token:<id> \| system, action: registry process id, subject: path :id, body } | **rule**: look up the registry command for route + method; redact keys matching token\|secret\|password\|key\|credential<br>**rule**: insert one audit_log row in the request's org (RLS) | audit_log row | 2: DB error → the request returns 500 (an unaudited write is not acceptable) | tests/m8-tenancy.test.ts — audit row per write, secrets redacted | 10 ms · $0 |
-| `MW.auth.signin` | Google sign-in callback (Auth.js) | { email, name, Google sub, email_verified } | **rule**: refuse when no email, unverified, or no membership and no open invite<br>**rule**: create/update users (sub, name, last seen); accept every open invite for that email → memberships | true \| false (false → /login?error=AccessDenied) | refused → /login 'isn't invited' state | tests/m8-auth.test.ts — not invited refused; invite accepted on first sign-in | 150 ms · $0 |
+| `MW.auth.signin` | Google sign-in callback (Auth.js) | { email, name, Google sub, email_verified } | **rule**: refuse when no email or unverified; SIGNUP_MODE=invite also refuses an email with no membership and no open invite (open, the default, lets anyone in to create a company)<br>**rule**: create/update users (sub, name, last seen); accept every open invite for that email → memberships | true \| false (false → /login?error=AccessDenied); a user with no membership lands on /welcome | refused → /login error state | tests/m8-auth.test.ts — invite-only refuses strangers; invite accepted on first sign-in; tests/m10-onboarding.test.ts — open sign-up | 150 ms · $0 |
 | `FE.auth.whoami` | `books auth whoami`, layout load | identity resolved in hooks | **rule**: current company + role from the identity | Whoami | 401 when not signed in | tests/m8-auth.test.ts | 20 ms · $0 |
 | `FE.members.list` | /settings/members, `books members list` | — | **rule**: memberships ⨝ users and open invites, RLS-scoped to the company | Member[] | 403 below owner | tests/m8-auth.test.ts | 50 ms · $0 |
 | `FE.member.invite` | Invite form, `books member invite --email --role` | { email, role } | **rule**: validate email + role; refuse duplicates (409)<br>**rule**: existing app user → membership now; else open invite accepted on first sign-in | Member (invite or member) | 1: bad email/role, already a member | tests/m8-auth.test.ts | 80 ms · $0 |
@@ -757,6 +763,8 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `FE.token.revoke` | Revoke, `books token revoke <id> --yes` | { id, yes: true } | **rule**: set revoked_at; the next request with it gets 401 | ApiToken | 1: no --yes, not found | tests/m8-auth.test.ts | 40 ms · $0 |
 | `FE.orgs.list` | Nav company switcher, `books orgs list` | identity memberships | **rule**: companies the caller belongs to; mark the current one | Org[] | — | tests/m8-auth.test.ts | 20 ms · $0 |
 | `FE.org.select` | Company switcher | { id: org_… } | **rule**: must be a member; tokens are pinned to their company<br>**rule**: set the books_org cookie; the next request runs in that company's RLS context | Org | 404 not a member; 403 with a token | tests/m8-auth.test.ts | 30 ms · $0 |
+| `FE.company.create` | /welcome after first sign-in, or Settings → Create another company | { name: string ≤ 120, business: string ≤ 600 } + signed-in user (may have no company) | **human**: user names the company and says what it does<br>**rule**: create org (profile: business, default coding rules, sampleData=false; no sample ledger), owner membership, audit in the new company; set the books_org cookie | Company → /settings with the setup checklist | 400 missing name or description; 401 not signed in; 403 API token | tests/m10-onboarding.test.ts — open sign-up creates an owned, empty company | 300 ms · $0 |
+| `FE.company.update` | Settings → Company, `books company show\|update` | { name?, business? ≤ 600, codingRules? ≤ 3000 } | **human**: owner edits the description and house coding rules<br>**rule**: validate lengths; store on orgs.profile_json; the next AI.entry.recommend prompt and its exact-input cache key change with it; setup checklist computed from connections, QuickBooks tokens, accounts and decisions | Company (profile + setup steps) | 400 too long; 403 not owner | tests/m10-onboarding.test.ts | 150 ms · $0 |
 <!-- /gen:processes -->
 
 ### Interaction directory
@@ -767,7 +775,7 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | `MW.coa.pull` | Slash API | HTTPS | sync | GET /v2/accounting/dimensions(+values) | 10 s; 5 tries |
 | `MW.entry.research` | QuickBooks API | HTTPS | sync | query Vendor, Purchase (24 h cache) | 10 s; 2 tries; continue without QuickBooks evidence |
 | `AI.merchant.identify` | Ollama | Anthropic | HTTP | sync | identify.v1 | 20 s; Ollama → Haiku |
-| `AI.entry.recommend` | Anthropic | HTTPS | sync | recommend.v1 (cached prefix) | 30 s; 1 retry; Sonnet once; else invalid |
+| `AI.entry.recommend` | Anthropic | HTTPS | sync | recommend.v2 (cached prefix: rules + company profile + accounts) | 30 s; 1 retry; Sonnet once; else invalid |
 | `MW.ledger.code` | Slash API | HTTPS | sync | PATCH entry | 10 s; idempotency key = decision id |
 | `MW.ledger.ready` | Slash API | HTTPS | sync | POST mark-ready | 10 s; idempotency key = decision id |
 | `FE.mapping.apply` | Slash API | HTTPS | sync | PUT /v2/accounting/mappings | 10 s; idempotency key = proposal id |
@@ -791,6 +799,7 @@ Other multi-state components: `questions` (open → answered, `FE.question.answe
 | Degraded: model down | Cron | Anthropic 5xx | `AI.entry.recommend` | invalid — 'Model unavailable, retry'; manual edit-and-approve still works |
 | Evals | Reviewer, CI | `books evals run` | `IN.evals.run` → `AI.merchant.identify` → `AI.entry.recommend` → `FE.evals.show` → `FE.eval.add` | EvalRun |
 | Setup | Owner | First run | `FE.settings.show` → `MW.qbo.connect` → `MW.coa.pull` → `FE.coa.list` | connected |
+| Sign up | New owner | Continue with Google on /login | `MW.auth.signin` → `FE.company.create` → `FE.company.update` → `FE.ledger.add` → `MW.ledger.test` → `MW.qbo.connect` → `MW.coa.pull` → `MW.ledger.pull` → `FE.entry.approve` | first entry approved in the owner's own company |
 | Control plane | Owner | Review or pause a component | `FE.system.graph` → `FE.component.toggle` → `MW.ledger.pull` → `AI.entry.recommend` | component off → its whenOff behavior; on → normal |
 | Mercury expense (QuickBooks direct) | Cron, reviewer | Hourly pull | `MW.ledger.pull` → `MW.coa.pull` → `MW.qbo.accounts` → `MW.entry.research` → `AI.entry.recommend` → `MW.entry.validate` → `FE.entry.approve` → `MW.qbo.write` → `MW.ledger.annotate` | ready (QuickBooks txn created, matched or recoded) |
 | Connect a ledger | Owner | Add Mercury | `FE.ledgers.list` → `FE.ledger.add` → `MW.ledger.test` → `FE.ledger.toggle` → `MW.ledger.pull` | connection active, items pulled |
@@ -872,7 +881,7 @@ A ledger connection (`ledger_connections`) is one Slash or Mercury account set, 
 
 **QuickBooks-direct guardrail.** QuickBooks is written only for `qbo_direct` connections, only after a human decision and the undo window, only after dedupe, and always with `requestid` = decision id. A connection can't be activated, or approved against, until the owner has confirmed that the ledger's own QuickBooks sync and the QBO bank feed are off or will be matched (recorded with who and when), and has mapped each ledger account to a QuickBooks bank account.
 
-**Dedupe (rule)** looks for QuickBooks transactions on the mapped bank account with the same amount within ±3 days. Other LaceLuxx-written transactions are ignored, so recurring same-amount charges aren't mistaken for duplicates.
+**Dedupe (rule)** looks for QuickBooks transactions on the mapped bank account with the same amount within ±3 days. Other transactions this app wrote are ignored, so recurring same-amount charges aren't mistaken for duplicates.
 
 | Match | Result |
 |---|---|
@@ -1071,4 +1080,5 @@ Proof for components added beyond the brief: `FE.entry.undo` (undo needed an end
 | 2026-11-20 | No database polling; per-company commit timers + advisory-lock leader | Polling would keep Neon awake (≈ 182 CU-h > 100 free); only one machine runs jobs during a deploy overlap |
 | 2026-11-20 | Audit written in `handle()` | Every write path covered in one place; failed writes not audited |
 | 2026-11-20 | Google sign-in, invite-only, Workspace accounts; dev bypass refused in production | Owner's choice (2026-11-20/21); no passwords to manage |
+| 2026-11-21 | Company-agnostic: open sign-up creates a company; each company enters its own Slash/Mercury key in the app (checked, then AES-GCM encrypted per company) and signs in to its own QuickBooks via the server's one Intuit app; recommend prompt v2 built from the company profile | Owner's request (2026-11-21): a general tool anyone can use, not one client's |
 | 2026-11-20 | One Fly machine (scheduler in-process), Neon Free | Stays under Fly's $5 waiver: ≈ $3.71/month billed $0 |

@@ -9,6 +9,9 @@ import { CAPABILITIES, type Capabilities, type LedgerAdapter, type LedgerKind } 
 import { SlashAdapter } from './slash.adapter';
 import { LiveMercury, MercuryAdapter } from './mercury';
 import { LiveSlash } from '../slash';
+import { getProfile } from '../profile';
+import { KEY_HELP } from '../../ledgerKeys';
+export { KEY_HELP };
 
 export type ConnectionRow = typeof schema.ledgerConnections.$inferSelect;
 export interface ConnectionConfig {
@@ -35,10 +38,11 @@ export async function chartSourceOf(connectionId: string): Promise<'slash' | 'qb
   return c && capabilitiesOf(c).chart === 'qbo' ? 'qbo' : 'slash';
 }
 
-/** First run: the Slash connection the app has always had (mode follows SLASH_MODE). */
+/** Demo companies only: a sample Slash connection (mode follows SLASH_MODE). Real companies add their own. */
 export async function ensureDefaultConnections() {
   const db = getDb();
   if (await db.select().from(schema.ledgerConnections).limit(1).get()) return;
+  if (!(await getProfile(currentOrgId()!)).sampleData) return;
   await db.insert(schema.ledgerConnections).values({
     id: DEFAULT_SLASH_ID, kind: 'slash', name: 'Slash', mode: config.slashMode, status: 'active',
     configJson: '{}', capabilitiesJson: JSON.stringify(CAPABILITIES.slash), createdAt: nowIso(), updatedAt: nowIso()
@@ -71,8 +75,8 @@ export async function addConnection(inp: AddConnectionInput): Promise<Connection
   if (!CAPABILITIES[inp.kind]) throw new AppError('bad_kind', `kind must be one of ${Object.keys(CAPABILITIES).join(', ')}`, 400);
   if (!inp.name?.trim()) throw new AppError('bad_name', 'name is required', 400);
   const mode = inp.mode ?? 'fixture';
-  if (inp.kind === 'mercury' && mode === 'live' && !inp.token) throw new AppError('token_required', 'A live Mercury connection needs a token (read-only is enough)', 400);
-  if (inp.kind === 'slash' && mode === 'live' && !inp.token) throw new AppError('token_required', 'A live Slash connection needs an API key (Slash dashboard → Settings → Developer)', 400);
+  if (mode === 'live' && !inp.token) throw new AppError('token_required', `A live ${inp.kind === 'slash' ? 'Slash' : 'Mercury'} connection needs your ${KEY_HELP[inp.kind].label} (${KEY_HELP[inp.kind].where})`, 400);
+  if (mode === 'live' && inp.token) await verifyKey(inp.kind, inp.token, inp.config ?? {});
   await ensureDefaultConnections();
   const caps = CAPABILITIES[inp.kind];
   const now = nowIso();
@@ -89,11 +93,15 @@ export async function addConnection(inp: AddConnectionInput): Promise<Connection
   return await getConnection(row.id);
 }
 
-export async function updateConnection(id: string, patch: { config?: ConnectionConfig; bankFeedConfirmed?: boolean; name?: string; by?: string }): Promise<ConnectionRow> {
+export async function updateConnection(id: string, patch: { config?: ConnectionConfig; bankFeedConfirmed?: boolean; name?: string; by?: string; mode?: 'fixture' | 'live'; token?: string }): Promise<ConnectionRow> {
   const c = await getConnection(id);
+  const cfg = patch.config ? { ...configOf(c), ...patch.config } : configOf(c);
+  if (patch.token) await verifyKey(c.kind as LedgerKind, patch.token, cfg);
   await getDb().update(schema.ledgerConnections).set({
     name: patch.name ?? c.name,
-    configJson: patch.config ? JSON.stringify({ ...configOf(c), ...patch.config }) : c.configJson,
+    ...(patch.mode ? { mode: patch.mode } : {}),
+    ...(patch.token ? { credentialsEnc: encrypt(patch.token), lastError: null } : {}),
+    configJson: patch.config ? JSON.stringify(cfg) : c.configJson,
     ...(patch.bankFeedConfirmed !== undefined ? {
       bankFeedConfirmedBy: patch.bankFeedConfirmed ? (patch.by ?? config.reviewer) : null,
       bankFeedConfirmedAt: patch.bankFeedConfirmed ? nowIso() : null
@@ -113,7 +121,7 @@ export function activationBlockers(c: ConnectionRow): string[] {
     const map = configOf(c).qboBankAccountIdByAccount ?? {};
     if (!Object.keys(map).length) out.push('Map each ledger account to a QuickBooks bank account');
   }
-  if (c.mode === 'live' && c.kind === 'mercury' && !c.credentialsEnc) out.push('Add a Mercury token');
+  if (c.mode === 'live' && !c.credentialsEnc && (c.kind === 'mercury' || config.slashMode !== 'live')) out.push(`Add your ${KEY_HELP[c.kind as LedgerKind].label}`);
   return out;
 }
 
@@ -135,18 +143,41 @@ export async function recordPull(id: string, error: string | null) {
 const adapters = new Map<string, LedgerAdapter>();
 const akey = (connectionId: string) => `${currentOrgId()}:${connectionId}`;
 
+
+/**
+ * Build an adapter. Live connections use their own key (per company, encrypted at rest). A live Slash connection
+ * without a key falls back to the server's SLASH_API_KEY only when the server itself runs SLASH_MODE=live (self-host);
+ * otherwise it fails loudly rather than silently serving sample data.
+ */
+export function buildAdapter(kind: LedgerKind, mode: 'fixture' | 'live', token: string | null, cfg: ConnectionConfig): LedgerAdapter {
+  const ports = getPorts();
+  if (kind === 'slash') {
+    if (mode !== 'live') return new SlashAdapter(ports.slash);
+    if (token) return new SlashAdapter(new LiveSlash(token, cfg.legalEntityId ?? ''));
+    if (config.slashMode === 'live') return new SlashAdapter(ports.slash);
+    throw new AppError('key_missing', `Add your ${KEY_HELP.slash.label} (${KEY_HELP.slash.where})`, 409);
+  }
+  if (kind === 'mercury') {
+    if (mode !== 'live') return new MercuryAdapter(ports.mercury, cfg.accountIds ?? []);
+    if (!token) throw new AppError('key_missing', `Add your ${KEY_HELP.mercury.label} (${KEY_HELP.mercury.where})`, 409);
+    return new MercuryAdapter(new LiveMercury(token), cfg.accountIds ?? []);
+  }
+  throw new AppError('bad_kind', `no adapter for ${kind}`, 400);
+}
+
+/** Check a key against the ledger before it is stored. A rejected key is never saved. */
+export async function verifyKey(kind: LedgerKind, token: string, cfg: ConnectionConfig) {
+  let health: { ok: boolean; message: string };
+  try { health = await buildAdapter(kind, 'live', token, cfg).health(); }
+  catch (e) { health = { ok: false, message: (e as Error).message }; }
+  if (!health.ok) throw new AppError('key_rejected', `${KEY_HELP[kind].label} was not accepted: ${health.message}. Find it at ${KEY_HELP[kind].where}.`, 422);
+}
+
 export async function getAdapter(connectionId: string): Promise<LedgerAdapter> {
   const cached = adapters.get(akey(connectionId));
   if (cached) return cached;
   const c = await getConnection(connectionId);
-  const ports = getPorts();
-  let a: LedgerAdapter;
-  // Live Slash: the connection's own encrypted key (per org). Without one, the app-level port (fixture, or env key locally).
-  if (c.kind === 'slash') a = new SlashAdapter(c.mode === 'live' && c.credentialsEnc ? new LiveSlash(decrypt(c.credentialsEnc), configOf(c).legalEntityId ?? '') : ports.slash);
-  else if (c.kind === 'mercury') {
-    const port = c.mode === 'live' ? new LiveMercury(decrypt(c.credentialsEnc!)) : ports.mercury;
-    a = new MercuryAdapter(port, configOf(c).accountIds ?? []);
-  } else throw new AppError('bad_kind', `no adapter for ${c.kind}`, 400);
+  const a = buildAdapter(c.kind as LedgerKind, c.mode as 'fixture' | 'live', c.credentialsEnc ? decrypt(c.credentialsEnc) : null, configOf(c));
   adapters.set(akey(connectionId), a);
   return a;
 }
@@ -158,7 +189,7 @@ export function resetAdapters() { adapters.clear(); }
 export function connectionView(c: ConnectionRow, counts?: { inReview: number; total: number }) {
   return {
     id: c.id, kind: c.kind, name: c.name, mode: c.mode, status: c.status,
-    capabilities: capabilitiesOf(c), config: configOf(c), hasCredentials: !!c.credentialsEnc,
+    capabilities: capabilitiesOf(c), config: configOf(c), hasCredentials: !!c.credentialsEnc, keyHelp: KEY_HELP[c.kind as LedgerKind] ?? null,
     bankFeedConfirmedBy: c.bankFeedConfirmedBy, bankFeedConfirmedAt: c.bankFeedConfirmedAt,
     lastPullAt: c.lastPullAt, lastError: c.lastError, blockers: activationBlockers(c),
     inReview: counts?.inReview ?? 0, total: counts?.total ?? 0, createdAt: c.createdAt

@@ -1,9 +1,9 @@
 <script lang="ts">
   let { data } = $props();
-  const messages: Record<string, string> = {
-    AccessDenied: "This Google account isn't invited to any company. Ask an owner to invite it.",
+  const messages: Record<string, string> = $derived({
+    AccessDenied: data.signupOpen ? 'Google did not confirm this email address. Use a verified Google account.' : "This Google account isn't invited to any company. Ask an owner to invite it.",
     Configuration: 'Sign-in is not configured on this server (missing Google credentials).'
-  };
+  });
 </script>
 <svelte:head><title>Sign in · Accounting Agent</title></svelte:head>
 <main class="login">
@@ -18,9 +18,13 @@
       <input type="hidden" name="redirectTo" value={data.next} />
       <button class="google" type="submit">
         <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.640 9.200c0-.640-.060-1.250-.160-1.840H9v3.480h4.840a4.140 4.140 0 0 1-1.800 2.720v2.260h2.920c1.700-1.570 2.680-3.880 2.680-6.620z"/><path fill="#34A853" d="M9 18c2.430 0 4.470-.800 5.960-2.180l-2.920-2.260c-.800.540-1.840.860-3.040.860-2.340 0-4.330-1.580-5.040-3.710H.960v2.330A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.960 10.710a5.410 5.410 0 0 1 0-3.420V4.960H.960a9 9 0 0 0 0 8.080l3-2.330z"/><path fill="#EA4335" d="M9 3.580c1.320 0 2.500.450 3.440 1.350l2.580-2.580C13.460.890 11.430 0 9 0A9 9 0 0 0 .960 4.960l3 2.330C4.670 5.160 6.660 3.580 9 3.580z"/></svg>
-        Sign in with Google
+        Continue with Google
       </button>
-      <p class="muted small">Invite only. An owner adds your Google email under Settings, Members.</p>
+      {#if data.signupOpen}
+        <p class="muted small">New here? Sign in with any Google account, then create your company. Free to try with demo data.</p>
+      {:else}
+        <p class="muted small">Invite only. An owner adds your Google email under Settings, Members.</p>
+      {/if}
     </form>
     {#if data.error}<p class="err" role="alert">{messages[data.error] ?? 'Sign-in failed. Try again.'}</p>{/if}
   </div>

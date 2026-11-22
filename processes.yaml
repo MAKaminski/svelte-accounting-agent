@@ -64,7 +64,7 @@ processes:
     whenOff: Merchant profile is "unknown"; no model call
   AI.entry.recommend:
     trigger: "After research; `books entry recommend`; Recommend again"
-    input: "RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts"
+    input: "RecInput { transaction{description, amountCents, mcc, kind}, evidence[], ownerAnswers[] } + enabled accounts + company profile (business, coding rules)"
     steps:
       - { kind: rule, does: "exact-input cache: unchanged hash → reuse stored output" }
       - { kind: rule, does: "Slash mapping precoded → code it (rules:mapping)" }
@@ -283,7 +283,7 @@ processes:
       - kind: rule
         does: map ledger account → QuickBooks bank account and qbo:<Id> → QuickBooks account
       - kind: rule
-        does: "dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other LaceLuxx-written txns"
+        does: "dedupe: Purchase/Deposit on that bank, same amount, ±3 days, ignoring other txns this app wrote"
       - kind: rule
         does: uncategorized match → sparse-update its lines; same account → no write; other account → entry invalid; none → create with requestid = decision id
     output: ledger_items ready + qbo_txn_id/qbo_txn_type, or invalid/recommended with a QUICKBOOKS reason
@@ -300,7 +300,7 @@ processes:
     input: entry + final account names
     steps:
       - kind: rule
-        does: 'adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by LaceLuxx Books: <account>"'
+        does: 'adapter.annotate: Mercury PATCH /transaction/{id} note "Coded in QuickBooks by Accounting Agent: <account>"'
     output: note on the ledger transaction
     writes: []
     fails: Failure noted on the entry; QuickBooks coding stands
@@ -341,15 +341,17 @@ processes:
     toggle: false
   FE.ledger.add:
     trigger: /ledgers Add connection, `books ledger add`
-    input: "{ kind, name, mode, token?, config (account → QuickBooks bank mapping), bankFeedConfirmed }"
+    input: "{ kind, name, mode, token?, legalEntity?, config (account → QuickBooks bank mapping), bankFeedConfirmed } — add or configure (replace key, switch to live)"
     steps:
       - kind: human
-        does: owner adds the connection and confirms the bank-feed setting (recorded with who and when); token stored AES-GCM encrypted
+        does: owner adds the connection, pastes the ledger's API key, and confirms the bank-feed setting (recorded with who and when)
+      - kind: rule
+        does: "live key → checked with the ledger (adapter.health) before saving; rejected → 422 naming where to find the key, nothing stored; accepted → AES-GCM encrypted per company"
     output: ledger_connections row (inactive)
     writes:
       - ledger_connections
-    fails: "1: bad kind, missing token for live"
-    accept: tests/m7-ledgers.test.ts, tests/e2e/ledgers.spec.ts
+    fails: "1: bad kind, missing key for live; 422: key rejected by the ledger (not stored)"
+    accept: tests/m7-ledgers.test.ts, tests/m10-onboarding.test.ts, tests/e2e/ledgers.spec.ts
     budget:
       p95_ms: 300
       usd: 0
@@ -420,13 +422,13 @@ processes:
     input: "{ email, name, Google sub, email_verified }"
     steps:
       - kind: rule
-        does: "refuse when no email, unverified, or no membership and no open invite"
+        does: "refuse when no email or unverified; SIGNUP_MODE=invite also refuses an email with no membership and no open invite (open, the default, lets anyone in to create a company)"
       - kind: rule
         does: "create/update users (sub, name, last seen); accept every open invite for that email → memberships"
-    output: "true | false (false → /login?error=AccessDenied)"
+    output: "true | false (false → /login?error=AccessDenied); a user with no membership lands on /welcome"
     writes: [ users, memberships, invites ]
-    fails: "refused → /login 'isn't invited' state"
-    accept: "tests/m8-auth.test.ts — not invited refused; invite accepted on first sign-in"
+    fails: "refused → /login error state"
+    accept: "tests/m8-auth.test.ts — invite-only refuses strangers; invite accepted on first sign-in; tests/m10-onboarding.test.ts — open sign-up"
     budget: { p95_ms: 150, usd: 0 }
     toggle: false
   FE.auth.whoami:
@@ -554,12 +556,40 @@ processes:
     budget: { p95_ms: 30, usd: 0 }
     toggle: false
 
+  FE.company.create:
+    trigger: "/welcome after first sign-in, or Settings → Create another company"
+    input: "{ name: string ≤ 120, business: string ≤ 600 } + signed-in user (may have no company)"
+    steps:
+      - kind: human
+        does: "user names the company and says what it does"
+      - kind: rule
+        does: "create org (profile: business, default coding rules, sampleData=false; no sample ledger), owner membership, audit in the new company; set the books_org cookie"
+    output: "Company → /settings with the setup checklist"
+    writes: [ orgs, memberships, audit_log ]
+    fails: "400 missing name or description; 401 not signed in; 403 API token"
+    accept: "tests/m10-onboarding.test.ts — open sign-up creates an owned, empty company"
+    budget: { p95_ms: 300, usd: 0 }
+    toggle: false
+  FE.company.update:
+    trigger: "Settings → Company, `books company show|update`"
+    input: "{ name?, business? ≤ 600, codingRules? ≤ 3000 }"
+    steps:
+      - kind: human
+        does: "owner edits the description and house coding rules"
+      - kind: rule
+        does: "validate lengths; store on orgs.profile_json; the next AI.entry.recommend prompt and its exact-input cache key change with it; setup checklist computed from connections, QuickBooks tokens, accounts and decisions"
+    output: "Company (profile + setup steps)"
+    writes: [ orgs ]
+    fails: "400 too long; 403 not owner"
+    accept: "tests/m10-onboarding.test.ts"
+    budget: { p95_ms: 150, usd: 0 }
+    toggle: false
 interactions:
   - { from: MW.ledger.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/entries, /v2/transactions", timeout: "10 s; 5 tries, jittered backoff; run failed" }
   - { from: MW.coa.pull, to: "Slash API", via: HTTPS, sync: sync, payload: "GET /v2/accounting/dimensions(+values)", timeout: "10 s; 5 tries" }
   - { from: MW.entry.research, to: "QuickBooks API", via: HTTPS, sync: sync, payload: "query Vendor, Purchase (24 h cache)", timeout: "10 s; 2 tries; continue without QuickBooks evidence" }
   - { from: AI.merchant.identify, to: "Ollama | Anthropic", via: HTTP, sync: sync, payload: "identify.v1", timeout: "20 s; Ollama → Haiku" }
-  - { from: AI.entry.recommend, to: Anthropic, via: HTTPS, sync: sync, payload: "recommend.v1 (cached prefix)", timeout: "30 s; 1 retry; Sonnet once; else invalid" }
+  - { from: AI.entry.recommend, to: Anthropic, via: HTTPS, sync: sync, payload: "recommend.v2 (cached prefix: rules + company profile + accounts)", timeout: "30 s; 1 retry; Sonnet once; else invalid" }
   - { from: MW.ledger.code, to: "Slash API", via: HTTPS, sync: sync, payload: "PATCH entry", timeout: "10 s; idempotency key = decision id" }
   - { from: MW.ledger.ready, to: "Slash API", via: HTTPS, sync: sync, payload: "POST mark-ready", timeout: "10 s; idempotency key = decision id" }
   - { from: FE.mapping.apply, to: "Slash API", via: HTTPS, sync: sync, payload: "PUT /v2/accounting/mappings", timeout: "10 s; idempotency key = proposal id" }
@@ -582,7 +612,6 @@ interactions:
     sync: sync
     payload: PATCH /transaction/{id} note
     timeout: 10 s; failure noted, coding stands
-
 traces:
   - { name: "Routine expense", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.coa.pull, MW.ledger.pull, FE.entries.list, MW.entry.research, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready, MW.mapping.propose ], end: ready }
   - { name: "Unknown merchant", actor: "Cron, reviewer", trigger: "Hourly pull", processes: [ MW.ledger.pull, MW.entry.research, AI.merchant.identify, AI.entry.recommend, MW.entry.validate, FE.entry.approve, MW.ledger.code, MW.ledger.ready ], end: ready }
@@ -594,6 +623,7 @@ traces:
   - { name: "Degraded: model down", actor: Cron, trigger: "Anthropic 5xx", processes: [ AI.entry.recommend ], end: "invalid — 'Model unavailable, retry'; manual edit-and-approve still works" }
   - { name: "Evals", actor: "Reviewer, CI", trigger: "`books evals run`", processes: [ IN.evals.run, AI.merchant.identify, AI.entry.recommend, FE.evals.show, FE.eval.add ], end: "EvalRun" }
   - { name: "Setup", actor: Owner, trigger: "First run", processes: [ FE.settings.show, MW.qbo.connect, MW.coa.pull, FE.coa.list ], end: "connected" }
+  - { name: "Sign up", actor: "New owner", trigger: "Continue with Google on /login", processes: [ MW.auth.signin, FE.company.create, FE.company.update, FE.ledger.add, MW.ledger.test, MW.qbo.connect, MW.coa.pull, MW.ledger.pull, FE.entry.approve ], end: "first entry approved in the owner's own company" }
   - name: Control plane
     actor: Owner
     trigger: Review or pause a component
